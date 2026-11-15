@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VERBA — lo propio de la app, con prefijo vb-. Convive con op- (Opal) y usa
+   solo sus tokens. La regla de las hojas vale acá: lo que vive adentro de la
+   vista es relleno translúcido sin blur; el vidrio lo pone el shell.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* El panel de la clase lleva dos campos lado a lado: un poco más ancho que el
+   espejo del rail. */
+:root { --op-panel: 268px; }
+
+/* Un <button> nuevo declara su borde: sin esto hereda el biselado gris de
+   Chromium (se veía como un marco blanco en la zona de soltar, los minutos,
+   el botón de reproducir y la velocidad). */
+.vb-drop, .vb-min, .vb-play, .vb-vel { border: 0; }
+
+/* ── La marca ──────────────────────────────────────────────────────────────── */
+.op-brand .vb-marca { width: 20px; height: 20px; flex: none; display: block; }
+
+/* ── El rail: materias ─────────────────────────────────────────────────────── */
+.op-navitem[hidden] { display: none; }   /* Piezas, fuera de --dev */
+.vb-materia__punto { width: 6px; height: 6px; margin: 0 5px; border-radius: 2px; background: var(--op-text-4); flex: none; transition: var(--tr-color); }
+.op-navitem.is-active .vb-materia__punto { background: var(--op-accent); }
+
+/* ── Donde se sueltan los audios ───────────────────────────────────────────── */
+.vb-drop {
+  display: flex; align-items: center; justify-content: center; gap: var(--op-2);
+  width: 100%; height: 56px; padding: 0 var(--op-4); margin-bottom: var(--op-3);
+  border-radius: var(--op-r-lg);
+  background: var(--op-sunken);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / .4), inset 0 0 0 1px var(--op-line);
+  color: var(--op-text-3); font-size: var(--op-fs-12);
+  transition: var(--tr-color);
+}
+.vb-drop:hover { color: var(--op-text-2); box-shadow: inset 0 1px 2px rgb(0 0 0 / .4), inset 0 0 0 1px var(--op-line-3); }
+.vb-drop.is-sobre { color: var(--op-text); background: var(--op-sunken-2); box-shadow: inset 0 1px 2px rgb(0 0 0 / .4), inset 0 0 0 1px var(--op-rim-2); }
+.vb-zona { flex: 0 0 auto; padding-top: var(--op-2); }
+
+/* ── Filas de la cola y de la biblioteca ───────────────────────────────────── */
+.vb-filas { display: flex; flex-direction: column; gap: 6px; }
+.vb-fila {
+  display: grid; align-items: center; gap: var(--op-4);
+  width: 100%; min-height: 54px; padding: var(--op-2) var(--op-3) var(--op-2) var(--op-4);
+  border-radius: var(--op-r-lg);
+  background: var(--op-s1);
+  box-shadow: var(--op-sheet);
+  text-align: left;
+  transition: var(--tr-color);
+}
+.vb-fila--cola { grid-template-columns: 18px minmax(0, 1fr) 68px 250px 28px; }
+.vb-fila--bib { grid-template-columns: minmax(0, 1fr) 92px 68px 150px 52px 28px; cursor: default; }
+.vb-fila--bib:hover { background: var(--op-s2); }
+.vb-fila__nombre { font-weight: var(--op-w-medium); }
+.vb-fila__sub { font-size: var(--op-fs-11); color: var(--op-text-3); }
+.vb-fila__dato { font-family: var(--op-mono); font-size: var(--op-fs-12); color: var(--op-text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vb-fila__estado { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: var(--op-fs-11); color: var(--op-text-3); }
+.vb-fila__renglon { display: flex; justify-content: space-between; gap: var(--op-2); min-width: 0; }
+.vb-fila__renglon b { color: var(--op-text); font-weight: var(--op-w-medium); font-family: var(--op-mono); font-variant-numeric: tabular-nums; }
+.vb-fila__error { color: var(--op-danger); }
+.vb-fila .op-rowactions { opacity: 0; transition: var(--tr-fade); }
+.vb-fila:hover .op-rowactions, .vb-fila:focus-within .op-rowactions { opacity: 1; }
+/* el avance corre parejo entre un aviso y el siguiente */
+.vb-fila .op-meter__fill { transition: width 500ms linear; }
+.vb-cols { display: grid; gap: var(--op-4); padding: 0 var(--op-3) var(--op-2) var(--op-4); font-size: var(--op-fs-10); letter-spacing: var(--op-track-caps); text-transform: uppercase; color: var(--op-text-3); }
+.vb-cols.vb-fila--bib { min-height: 0; background: none; box-shadow: none; }
+.vb-cols.vb-fila--bib:hover { background: none; }
+.vb-calmini { display: flex; align-items: center; gap: var(--op-2); }
+.vb-calmini .op-meter { flex: 1; }
+.vb-calmini b { font-family: var(--op-mono); font-weight: var(--op-w-medium); font-size: var(--op-fs-12); min-width: 38px; font-variant-numeric: tabular-nums; }
+.vb-seccion { font-size: var(--op-fs-10); letter-spacing: var(--op-track-caps); text-transform: uppercase; color: var(--op-text-3); margin: var(--op-4) var(--op-4) var(--op-2); }
+
+/* ── La transcripción ──────────────────────────────────────────────────────── */
+.vb-cal { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1.4fr; gap: 6px; flex: 0 0 auto; padding-bottom: var(--op-2); }
+.vb-cal > div { padding: var(--op-2) var(--op-3); border-radius: var(--op-r-md); background: var(--op-sunken); box-shadow: inset 0 0 0 1px var(--op-line); min-width: 0; }
+.vb-cal dt { font-size: var(--op-fs-10); letter-spacing: var(--op-track-caps); text-transform: uppercase; color: var(--op-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vb-cal dd { margin: 2px 0 0; display: flex; align-items: center; gap: var(--op-3); font-family: var(--op-mono); font-weight: var(--op-w-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vb-cal .op-meter { flex: 1; }
+dl.vb-cal { margin: 0; }
+.vb-cols[hidden] { display: none; }
+
+.vb-texto { --op-fade: 22px; position: relative; }
+.vb-par {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--op-3);
+  padding: 9px var(--op-3); border-radius: var(--op-r-lg);
+  cursor: default;
+  transition: var(--tr-color);
+}
+.vb-par:hover { background: var(--op-wash-1); }
+.vb-par__hora { font-family: var(--op-mono); font-size: var(--op-fs-11); line-height: 23px; color: var(--op-text-3); font-variant-numeric: tabular-nums; transition: color var(--op-t-2) var(--op-ease-soft); }
+.vb-par p { margin: 0; max-width: 68ch; font-size: 14px; line-height: 1.62; color: var(--op-text-2); transition: color var(--op-t-2) var(--op-ease-soft); user-select: text; cursor: text; }
+.vb-par.is-suena { background: rgb(255 255 255 / .045); box-shadow: var(--op-sheet); }
+.vb-par.is-suena .vb-par__hora { color: var(--op-accent); }
+.vb-par.is-suena p { color: var(--op-text); }
+.vb-par.es-baja p { color: var(--op-text-3); }
+.vb-nota { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--op-fs-11); color: var(--op-text-3); }
+.vb-nota .op-icon { width: 13px; height: 13px; }
+/* Una corrección del vocabulario: el acento vive en una línea, no en un relleno. */
+.vb-fx { color: var(--op-text); border-radius: 3px; text-decoration: underline dotted rgb(var(--op-accent-rgb) / .7); text-underline-offset: 4px; transition: var(--tr-color); }
+.vb-fx.is-luz { background: rgb(var(--op-accent-rgb) / .16); }
+/* Lo que Whisper inventó en un silencio: sigue ahí, tachado. */
+.vb-inv { color: var(--op-text-3); text-decoration: line-through; text-decoration-color: var(--op-text-3); }
+.vb-fin { padding: var(--op-3) var(--op-3) var(--op-6) calc(56px + var(--op-3) * 2); color: var(--op-text-3); font-size: var(--op-fs-12); }
+
+/* ── El panel: correcciones y términos ─────────────────────────────────────── */
+.vb-tabs { padding: var(--op-2) var(--op-3) 0; flex: 0 0 auto; }
+.vb-tabs .op-segmented { display: grid; width: 100%; }
+.vb-tabs .op-segmented__opt { padding-inline: 0; }
+.vb-corr { padding: var(--op-2) var(--op-2); border-radius: var(--op-r-md); transition: var(--tr-color); }
+.vb-corr:hover { background: var(--op-wash-1); }
+.vb-corr__de { font-family: var(--op-mono); font-size: var(--op-fs-12); color: var(--op-text-3); text-decoration: line-through; overflow-wrap: anywhere; }
+.vb-corr__a { display: flex; align-items: center; gap: 6px; font-weight: var(--op-w-medium); overflow-wrap: anywhere; }
+.vb-corr__a .op-icon { width: 12px; height: 12px; color: var(--op-text-3); flex: none; }
+.vb-corr__donde { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.vb-min { height: 22px; padding: 0 var(--op-2); border-radius: var(--op-r-sm); background: var(--op-sunken); box-shadow: inset 0 0 0 1px var(--op-line); font-family: var(--op-mono); font-size: var(--op-fs-11); color: var(--op-text-2); font-variant-numeric: tabular-nums; transition: var(--tr-color); }
+.vb-min:hover { color: var(--op-text); background: var(--op-sunken-2); box-shadow: inset 0 0 0 1px var(--op-rim); }
+.vb-ayuda { margin: 0 0 var(--op-3); font-size: var(--op-fs-12); color: var(--op-text-3); line-height: var(--op-lh); }
+.vb-nueva { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px; gap: 6px; align-items: center; }
+.vb-panelbloque { display: flex; flex-direction: column; gap: var(--op-3); }
+
+/* ── El reproductor (en el lugar del compositor) ───────────────────────────── */
+.op-composer__box.vb-player {
+  flex-direction: row; align-items: center; gap: var(--op-4);
+  padding: 10px var(--op-4) 10px var(--op-3);
+}
+/* El foco de un botón de adentro no enciende el canto de la caja: no es un campo. */
+.op-composer__box.vb-player:focus-within { box-shadow: var(--op-sheet), var(--op-e3); }
+.vb-play {
+  width: 36px; height: 36px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--op-deep); color: var(--op-accent);
+  box-shadow: inset 0 0 0 1px var(--op-rim), var(--op-e1);
+  transition: var(--tr-color);
+}
+.vb-play:hover { background: var(--op-deep-2); box-shadow: inset 0 0 0 1px var(--op-rim-2), var(--op-e1); }
+.vb-play:disabled { color: var(--op-text-4); box-shadow: inset 0 0 0 1px var(--op-line); pointer-events: none; }
+.vb-play .op-icon { width: 15px; height: 15px; fill: currentColor; }
+.vb-player__reloj { flex: none; font-size: var(--op-fs-12); color: var(--op-text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vb-player__reloj b { color: var(--op-text); font-weight: var(--op-w-medium); }
+.vb-onda { flex: 1 1 auto; min-width: 0; height: 40px; border-radius: var(--op-r-sm); cursor: pointer; }
+.vb-onda canvas { display: block; width: 100%; height: 100%; }
+.vb-vel { flex: none; min-width: 44px; height: 24px; justify-content: center; cursor: default; background: var(--op-sunken); box-shadow: inset 0 0 0 1px var(--op-line); font-variant-numeric: tabular-nums; }
+.vb-vel:hover { color: var(--op-text); background: var(--op-sunken-2); box-shadow: inset 0 0 0 1px var(--op-rim); }
+.vb-seguir { display: flex; align-items: center; gap: var(--op-2); flex: none; font-size: var(--op-fs-12); color: var(--op-text-2); }
+
+/* ── Vocabularios ──────────────────────────────────────────────────────────── */
+.vb-vocs { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--op-2); align-items: start; }
+.vb-voc { display: flex; flex-direction: column; gap: var(--op-3); padding: var(--op-4); border-radius: var(--op-r-lg); background: var(--op-s1); box-shadow: var(--op-sheet); }
+.vb-voc__head { display: flex; align-items: center; gap: var(--op-2); }
+.vb-voc__nombre { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); }
+.vb-voc__rotulo { font-size: var(--op-fs-10); letter-spacing: var(--op-track-caps); text-transform: uppercase; color: var(--op-text-3); }
+.vb-pareja { display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 24px; align-items: center; gap: 6px; min-height: 26px; font-size: var(--op-fs-12); }
+.vb-pareja__de { font-family: var(--op-mono); color: var(--op-text-3); text-decoration: line-through; overflow-wrap: anywhere; }
+.vb-pareja .op-icon { width: 12px; height: 12px; color: var(--op-text-3); }
+.vb-pareja .op-iconbtn { opacity: 0; transition: var(--tr-fade), var(--tr-color); }
+.vb-pareja:hover .op-iconbtn, .vb-pareja:focus-within .op-iconbtn { opacity: 1; }
+.vb-vacio { font-size: var(--op-fs-12); color: var(--op-text-3); }
+
+/* ── El modal de agregar ───────────────────────────────────────────────────── */
+.vb-archivos { display: flex; flex-direction: column; gap: 5px; max-height: 168px; overflow-y: auto; }
+.vb-archivo { display: flex; align-items: center; gap: var(--op-2); padding: 7px var(--op-3); border-radius: var(--op-r-md); background: var(--op-sunken); box-shadow: inset 0 0 0 1px var(--op-line); font-size: var(--op-fs-12); }
+.vb-archivo .op-icon { width: 14px; height: 14px; color: var(--op-text-3); flex: none; }

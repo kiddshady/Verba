@@ -1,0 +1,144 @@
+<meta charset="utf-8">
+<!-- CSP estricta: sin conexiones externas, sin eval. Lo único de afuera de la
+     app que se carga es el audio que se transcribió, desde el disco (media-src). -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' file:;">
+<title>Verba</title>
+
+<link rel="stylesheet" href="./css/fonts.css">
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/motion.css">
+<link rel="stylesheet" href="./css/shell.css">
+<link rel="stylesheet" href="./css/controls.css">
+<link rel="stylesheet" href="./css/surfaces.css">
+<link rel="stylesheet" href="./css/overlays.css">
+<link rel="stylesheet" href="./css/verba.css">
+
+<style>
+  /* Boot splash: réplica exacta del primer frame. Pinta ANTES de que cargue
+     ningún módulo, así no hay un solo instante sin identidad en pantalla.
+     El color tiene que ser el mismo backgroundColor de la BrowserWindow —
+     literal, no una variable: los tokens todavía podrían no haber cargado. */
+  #boot-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    background: #0a0a0a;
+    transition: opacity .34s cubic-bezier(.16, 1, .3, 1);
+  }
+  /* La marca es el ícono exacto (tools/icono.cjs la escribe acá abajo). Se
+     materializa en su lugar: solo opacidad. */
+  #boot-splash svg { width: 72px; height: 72px; animation: boot-in .5s cubic-bezier(.33, 1, .68, 1) both; }
+  @keyframes boot-in { from { opacity: 0 } }
+</style>
+
+<div id="boot-splash"><!-- marca:splash --><svg class="vb-marca" aria-hidden="true" width="64" height="64" viewBox="0 0 64 64"><defs><radialGradient id="vb-sp-luz"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></radialGradient></defs><rect width="64" height="64" rx="12" fill="#0f1113"/><circle cx="32" cy="32" r="30" fill="url(#vb-sp-luz)" opacity=".22"/><path d="M16 27v10M24 21v22M32 16v32M40 23v18M48 27v10" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round"/></svg><!-- /marca:splash --></div>
+
+<div class="op-app">
+
+  <!-- El sustrato: la niebla que el vidrio difumina. Una capa, estática. -->
+  <div class="op-fog" aria-hidden="true"></div>
+
+  <!-- ── Titlebar propia: acá no hay frame nativo ─────────────────────────── -->
+  <header class="op-titlebar">
+    <div class="op-brand op-no-drag" id="brand">
+      <!-- marca:titlebar --><svg class="vb-marca" aria-hidden="true" width="64" height="64" viewBox="0 0 64 64"><defs><radialGradient id="vb-tb-luz"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></radialGradient></defs><rect width="64" height="64" rx="12" fill="#0f1113"/><circle cx="32" cy="32" r="30" fill="url(#vb-tb-luz)" opacity=".22"/><path d="M16 27v10M24 21v22M32 16v32M40 23v18M48 27v10" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round"/></svg><!-- /marca:titlebar -->
+      <span class="op-brand__name">Verba</span>
+    </div>
+
+    <!-- Contexto de la vista actual: la clase abierta. -->
+    <div class="op-titlebar__context" id="titlebar-context"></div>
+  </header>
+
+  <!-- Los controles de ventana viven aparte de la titlebar: sin ella, flotan
+       en la esquina (.sin-titlebar). -->
+  <div class="op-wincontrols">
+    <button class="op-wincontrol" id="win-min"   aria-label="Minimizar"><i data-icon="winMin"></i></button>
+    <button class="op-wincontrol op-iconswap" id="win-max" aria-label="Maximizar"><i data-icon="winMax"></i><i data-icon="winRestore"></i></button>
+    <button class="op-wincontrol op-wincontrol--close" id="win-close" aria-label="Cerrar"><i data-icon="winClose"></i></button>
+  </div>
+
+  <div class="op-body">
+
+    <!-- ── Rail ──────────────────────────────────────────────────────────── -->
+    <nav class="op-rail">
+      <!-- La marca, cuando no hay titlebar: se despliega sola (.sin-titlebar). -->
+      <div class="op-rail__brand"><div>
+        <div class="op-brand">
+          <!-- marca:rail --><svg class="vb-marca" aria-hidden="true" width="64" height="64" viewBox="0 0 64 64"><defs><radialGradient id="vb-rl-luz"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></radialGradient></defs><rect width="64" height="64" rx="12" fill="#0f1113"/><circle cx="32" cy="32" r="30" fill="url(#vb-rl-luz)" opacity=".22"/><path d="M16 27v10M24 21v22M32 16v32M40 23v18M48 27v10" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round"/></svg><!-- /marca:rail -->
+          <span class="op-brand__name">Verba</span>
+        </div>
+      </div></div>
+
+      <div class="op-rail__top">
+        <button class="op-btn op-btn--secondary op-flashable" id="btn-agregar" style="width:100%">
+          <i data-icon="plus"></i> Agregar audios
+        </button>
+      </div>
+
+      <div class="op-rail__nav op-scroll">
+        <div class="op-rail__group">
+          <button class="op-navitem" data-view="cola">
+            <i data-icon="list"></i> Cola <span class="op-navitem__count" id="n-cola"></span>
+          </button>
+          <button class="op-navitem" data-view="biblioteca" id="nav-biblioteca">
+            <i data-icon="inbox"></i> Biblioteca <span class="op-navitem__count" id="n-biblioteca"></span>
+          </button>
+        </div>
+
+        <div class="op-rail__group">
+          <div class="op-rail__group-label">Materias</div>
+          <div id="rail-materias"></div>
+        </div>
+
+        <div class="op-rail__group">
+          <div class="op-rail__group-label">Sistema</div>
+          <button class="op-navitem" data-view="vocabularios">
+            <i data-icon="book"></i> Vocabularios
+          </button>
+          <button class="op-navitem" data-view="ajustes">
+            <i data-icon="settings"></i> Ajustes
+          </button>
+          <button class="op-navitem" data-view="piezas" id="nav-piezas" hidden>
+            <i data-icon="layers"></i> Piezas
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── Vista ─────────────────────────────────────────────────────────── -->
+    <main class="op-main" id="view"></main>
+
+    <!-- ── Panel derecho: las correcciones y los términos de la clase abierta ── -->
+    <aside class="op-panel" id="panel" aria-label="Correcciones y términos" inert></aside>
+
+    <!-- ── El reproductor: ocupa el lugar del compositor de Opal ───────────── -->
+    <div class="op-composer" id="composer" inert>
+      <div class="op-composer__in"><div class="op-composer__pad">
+        <div class="op-composer__box vb-player" id="player">
+          <button class="vb-play op-iconswap" id="pl-play" aria-label="Reproducir"><i data-icon="play"></i><i data-icon="pause"></i></button>
+          <span class="vb-player__reloj op-mono"><b id="pl-ahora">0:00</b><span id="pl-total"></span></span>
+          <div class="vb-onda" id="pl-pista"><canvas id="pl-onda"></canvas></div>
+          <button class="op-chip op-chip--mono vb-vel" id="pl-vel" data-tip="Velocidad" data-tip-side="top">1×</button>
+          <label class="vb-seguir"><button class="op-switch is-on" id="pl-seguir"></button><span>Seguir el audio</span></label>
+          <audio id="pl-audio" preload="metadata"></audio>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ── Statusbar ───────────────────────────────────────────────────────── -->
+  <footer class="op-statusbar">
+    <div class="op-statusbar__item" id="stat-motor"></div>
+    <div class="op-spacer"></div>
+    <div class="op-statusbar__item op-mono" id="stat-equipo" data-tip="El modelo y dónde corre" data-tip-side="top"></div>
+  </footer>
+</div>
+
+<!-- Todos los overlays se portalean acá: fuera del flujo, por encima de todo. -->
+<div id="op-layer"></div>
+
+<script type="module" src="./js/app.js"></script>
