@@ -198,11 +198,12 @@ const Toast = (() => {
   }
 
   /**
-   * Toast.show({ title, text, tone: 'default'|'error', duration, icon })
+   * Toast.show({ title, text, tone: 'default'|'error', duration, icon, action })
+   * action: { label, run } → un botón adentro del aviso (Mostrar, Deshacer…).
    * duration:0 → se queda hasta que lo cierren.
    * Devuelve { close }. Con uno igual a la vista, devuelve el de ese.
    */
-  function show({ title, text = '', tone = 'default', duration = 4200, icon } = {}) {
+  function show({ title, text = '', tone = 'default', duration = 4200, icon, action } = {}) {
     const clave = `${tone}
 ${title}
 ${text}`;
@@ -224,6 +225,7 @@ ${text}`;
       <div class="op-toast__main">
         <div class="op-toast__title"></div>
         ${text ? '<div class="op-toast__text"></div>' : ''}
+        ${action ? '<button class="op-btn op-btn--secondary op-btn--sm op-toast__action"></button>' : ''}
       </div>
       <button class="op-iconbtn op-iconbtn--sm" data-close aria-label="Cerrar">${Icons.svg('close')}</button>
       ${duration ? '<span class="op-toast__life"></span>' : ''}`;
@@ -248,6 +250,12 @@ ${text}`;
       setTimeout(fuera, 320);
     };
     el.querySelector('[data-close]').addEventListener('click', close);
+    // El botón del aviso: hace lo suyo y el aviso se va (ya cumplió).
+    if (action) {
+      const b = el.querySelector('.op-toast__action');
+      b.textContent = action.label;
+      b.addEventListener('click', () => { close(); action.run?.(); });
+    }
 
     /* Hover pausa la cuenta: si te acercás a leerlo, no se te escapa. Lo que
        queda se lleva a mano, descontando lo que corrió. Antes se leía de la
