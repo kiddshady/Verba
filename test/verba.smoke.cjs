@@ -139,11 +139,31 @@ app.whenReady().then(async () => {
   ok('y prende ese párrafo', await hasta(`document.querySelector('#view .vb-par.is-suena .vb-par__hora')?.textContent === '0:58'`));
   await js(`document.getElementById('pl-audio').pause()`);
 
+  console.log('\n5-bis. Buscar en el texto');
+  const buscar = (q) => js(`const c = document.querySelector('#view #busca-q'); c.value = ${JSON.stringify(q)}; c.dispatchEvent(new Event('input', { bubbles: true }))`);
+  const cuenta = () => js(`return document.querySelector('#view #busca-n').textContent`);
+  await buscar('ADRENERGICO');
+  ok('encuentra sin acentos ni mayúsculas', await hasta(`document.querySelector('#view #busca-n').textContent === '1 de 1'`), await cuenta());
+  await buscar('la reserpina');
+  ok('encuentra a caballo de una corrección', await hasta(`document.querySelector('#view #busca-n').textContent === '1 de 2'`), await cuenta());
+  ok('marca lo encontrado sin tocar el texto', await js(`return CSS.highlights.get('vb-busca')?.size === 2 && CSS.highlights.get('vb-busca-actual')?.size === 1 && document.querySelectorAll('#view .vb-fx').length === 2 && !document.querySelector('#view #texto mark')`));
+  ok('lo marcado es lo buscado', await js(`return [...CSS.highlights.get('vb-busca')].map((r) => r.toString()).join('|')`).then((t) => t.toLowerCase() === 'la reserpina|la reserpina' || (console.log('     ' + t), false)));
+  await tocar('#view #busca-sig');
+  ok('la flecha pasa al siguiente', await hasta(`document.querySelector('#view #busca-n').textContent === '2 de 2'`), await cuenta());
+  await foto('3b-busqueda');
+  await buscar('zzz');
+  ok('sin resultados lo dice y apaga las flechas', await hasta(`document.querySelector('#view #busca-n').textContent === 'Sin resultados' && document.querySelector('#view #busca-sig').disabled && !CSS.highlights.has('vb-busca')`), await cuenta());
+  await buscar('reserpina');
+  await hasta(`document.querySelector('#view #busca-n').textContent === '1 de 2'`);
+
   console.log('\n6. Una corrección nueva');
   await js(`document.querySelector('#panel #pn-de').value = 'profe'; document.querySelector('#panel #pn-a').value = 'profesor';`);
   await tocar('#panel [data-action="agregar-corr"]');
   ok('aparece aplicada en el texto', await hasta(`[...document.querySelectorAll('#view .vb-fx')].some((x) => x.textContent === 'profesor')`));
   ok('y queda en el vocabulario del grupo', JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'vocabularios.json'), 'utf8')).grupos.Medicinal.correcciones.some((c) => c.de === 'profe' && c.a === 'profesor'));
+
+  ok('la búsqueda sobrevive al repintado de la lectura', await hasta(`document.querySelector('#view #busca-q').value === 'reserpina' && CSS.highlights.get('vb-busca')?.size === 2 && [...CSS.highlights.get('vb-busca')].every((r) => r.startContainer.isConnected)`), await cuenta());
+  await buscar('');
 
   console.log('\n7. Exportar');
   const r = await js(`return await window.opal.verba.exportar('c-0001', 'md', false)`);
@@ -151,6 +171,12 @@ app.whenReady().then(async () => {
   ok('el .md queda al lado del audio', path.dirname(r.ruta) === DIR && md.startsWith('# Sistema adrenérgico'), r.ruta);
   ok('con las correcciones y sin el invento en el texto', md.includes('| reserfina | reserpina | 0:28, 0:58 |') && !md.split('## Correcciones')[0].includes('Gracias'));
   ok('la segunda vez avisa que ya existe', (await js(`return await window.opal.verba.exportar('c-0001', 'md', false)`)).existe === true);
+
+  await tocar('#view #btn-exportar');
+  await hasta(`document.querySelectorAll('#op-layer .op-menuitem').length >= 4`);
+  await tocar('#op-layer .op-menuitem:nth-of-type(2)');
+  ok('exportar desde el menú avisa con un botón para ir a la carpeta', await hasta(`document.querySelector('#op-layer .op-toast__action')?.textContent === 'Mostrar en la carpeta'`), await js(`return document.querySelector('#op-layer .op-toasts')?.textContent.replace(/\\s+/g, ' ').slice(0, 160)`));
+  ok('y el .txt quedó escrito', fs.existsSync(path.join(DIR, 'clase de prueba.txt')));
 
   console.log('\n8. Vocabularios y ajustes');
   await tocar('.op-navitem[data-view="vocabularios"]');
@@ -175,6 +201,10 @@ app.whenReady().then(async () => {
   ok('ajustes dice cómo están las actualizaciones', await hasta(`document.querySelector('#view #upd-boton')?.textContent === 'Buscar actualizaciones' && document.querySelector('#view #upd-texto')?.textContent.length > 10`));
   ok('sin versión nueva, la statusbar no muestra nada', await js(`return getComputedStyle(document.getElementById('stat-update')).display === 'none'`));
   ok('ajustes muestra el modelo', await hasta(`document.querySelector('#view #set-modelo')?.textContent.trim() === 'large-v3-turbo'`));
+  ok('ajustes ofrece correr solo en CPU', await js(`return [...document.querySelectorAll('#view #set-dispositivo .op-segmented__opt')].map((b) => b.dataset.value + (b.classList.contains('is-active') ? '*' : '')).join(',') === 'auto*,cpu'`));
+  ok('seguir en la bandeja viene prendido', await js(`return document.querySelector('#view #set-tray').classList.contains('is-on')`));
+  await tocar('#view #set-tray');
+  ok('y apagarlo queda guardado', await hasta(`!document.querySelector('#view #set-tray').classList.contains('is-on')`) && await (async () => { await espera(300); return JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'settings.json'), 'utf8')).cerrarAlTray === false; })());
   await foto('5-ajustes');
 
   if (REAL) {

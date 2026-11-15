@@ -67,6 +67,10 @@ const DEFAULT_SETTINGS = {
   python: 'python',
   modelo: 'large-v3-turbo',
   idioma: 'es',             // o 'auto': que lo detecte Whisper
+  /** Dónde corre Whisper: 'auto' usa la placa si hay una; 'cpu' la deja libre. */
+  dispositivo: 'auto',
+  /** La X esconde la ventana en la bandeja y la cola sigue (main.cjs). */
+  cerrarAlTray: true,
   /** El grupo del último audio que se agregó: el que propone el diálogo. */
   ultimoGrupo: '',
   /** El reproductor. */

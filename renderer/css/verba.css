@@ -104,6 +104,14 @@ dl.vb-cal { margin: 0; }
 .vb-fx.is-luz { background: rgb(var(--op-accent-rgb) / .16); }
 /* Lo que Whisper inventó en un silencio: sigue ahí, tachado. */
 .vb-inv { color: var(--op-text-3); text-decoration: line-through; text-decoration-color: var(--op-text-3); }
+/* Buscar en el texto: lo encontrado se pinta con la Highlight API, sin tocar
+   el DOM de los párrafos (los tiempos y las correcciones siguen como están). */
+.vb-busca { display: flex; align-items: center; gap: 4px; margin-right: var(--op-2); }
+.vb-busca .op-inputwrap { width: 230px; }
+.vb-busca .op-input { width: 100%; padding-right: 74px; }
+.vb-busca__n { position: absolute; right: var(--op-3); font-size: var(--op-fs-11); color: var(--op-text-3); pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+::highlight(vb-busca) { background-color: rgb(var(--op-accent-rgb) / .2); color: var(--op-text); }
+::highlight(vb-busca-actual) { background-color: rgb(var(--op-accent-rgb) / .62); color: #fff; }
 .vb-fin { padding: var(--op-3) var(--op-3) var(--op-6) calc(56px + var(--op-3) * 2); color: var(--op-text-3); font-size: var(--op-fs-12); }
 
 /* ── El panel: correcciones y términos ─────────────────────────────────────── */

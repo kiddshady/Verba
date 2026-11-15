@@ -403,6 +403,11 @@ function viewClase(id) {
     sub: c.archivo,
     crumbs,
     actions: `
+      <div class="vb-busca">
+        <div class="op-inputwrap"><i data-icon="search"></i><input class="op-input" id="busca-q" spellcheck="false" placeholder="Buscar en el texto" aria-label="Buscar en el texto" data-tip="Ctrl+F"><span class="vb-busca__n" id="busca-n"></span></div>
+        <button class="op-iconbtn" id="busca-ant" data-tip="Anterior · Shift+Enter" aria-label="Resultado anterior" disabled><i data-icon="chevronUp"></i></button>
+        <button class="op-iconbtn" id="busca-sig" data-tip="Siguiente · Enter" aria-label="Resultado siguiente" disabled><i data-icon="chevronDown"></i></button>
+      </div>
       <button class="op-btn op-btn--secondary op-flashable" id="btn-exportar"><i data-icon="download"></i> Exportar</button>
       <button class="op-iconbtn" data-menu="clase" data-menu-arg="${esc(c.id)}" data-tip="Más"><i data-icon="more"></i></button>`,
   }) + `
@@ -426,6 +431,7 @@ function viewClase(id) {
   Player.cargar(v);
   Player.marcar(false);
   pintarPanel();
+  Busca.montar(c.id);
 
   /* Lo que se selecciona en el texto queda propuesto como «lo que escribió
      Whisper» en el panel: corregir una palabra es seleccionarla y escribir
@@ -436,6 +442,103 @@ function viewClase(id) {
     if (de && sel && sel.length <= 60 && !sel.includes('\n')) de.value = sel;
   });
 }
+
+/* ══ Buscar en el texto ══════════════════════════════════════════════════════
+   Sin mayúsculas ni acentos («adrenergico» encuentra «adrenérgico»). Lo
+   encontrado se marca con la Highlight API: rangos sobre los nodos de texto,
+   sin envolver nada, así las correcciones y los inventos quedan como están y
+   una coincidencia puede cruzar de un tramo corregido al siguiente. */
+
+const Busca = (() => {
+  let id = null, q = '', hits = [], k = -1;
+
+  // Una letra por letra: los índices del texto plegado valen en el original.
+  const plegar = (s) => { let o = ''; for (let i = 0; i < s.length; i++) o += s[i].normalize('NFD')[0].toLowerCase()[0] || s[i]; return o; };
+
+  function borrar() { CSS.highlights.delete('vb-busca'); CSS.highlights.delete('vb-busca-actual'); }
+
+  /** En qué nodo de texto cae un índice del párrafo. `fin`: el final de un rango se queda en el nodo anterior. */
+  function donde(nodos, i, fin) {
+    let j = nodos.length - 1;
+    while (j > 0 && (fin ? nodos[j][1] >= i : nodos[j][1] > i)) j--;
+    return [nodos[j][0], i - nodos[j][1]];
+  }
+
+  function contar() {
+    const n = document.querySelector('#view #busca-n'), a = document.querySelector('#view #busca-ant'), s = document.querySelector('#view #busca-sig');
+    if (!n) return;
+    n.textContent = !q.trim() ? '' : hits.length ? `${k + 1} de ${hits.length}` : 'Sin resultados';
+    a.disabled = s.disabled = hits.length < 2;
+  }
+
+  function actual(llevar) {
+    CSS.highlights.delete('vb-busca-actual');
+    if (k < 0) return;
+    const h = new Highlight(hits[k]);
+    h.priority = 1;
+    CSS.highlights.set('vb-busca-actual', h);
+    if (!llevar) return;
+    const sc = document.querySelector('#view #texto'), r = hits[k].getBoundingClientRect(), c = sc.getBoundingClientRect();
+    if (r.top < c.top + 40 || r.bottom > c.bottom - 40) sc.scrollTo({ top: Math.max(0, sc.scrollTop + r.top - c.top - sc.clientHeight * 0.35), behavior: 'smooth' });
+  }
+
+  function aplicar(llevar = true) {
+    hits = [];
+    borrar();
+    const caja = document.querySelector('#view #texto'), aguja = plegar(q.trim());
+    if (caja && aguja) {
+      for (const p of caja.querySelectorAll('.vb-par p')) {
+        const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT), nodos = [];
+        let total = '';
+        for (let n; (n = w.nextNode());) { nodos.push([n, total.length]); total += n.data; }
+        const heno = plegar(total);
+        for (let i = heno.indexOf(aguja); i >= 0; i = heno.indexOf(aguja, i + aguja.length)) {
+          const r = new Range();
+          r.setStart(...donde(nodos, i, false));
+          r.setEnd(...donde(nodos, i + aguja.length, true));
+          hits.push(r);
+        }
+      }
+    }
+    if (hits.length) CSS.highlights.set('vb-busca', new Highlight(...hits));
+    k = hits.length ? Math.min(Math.max(k, 0), hits.length - 1) : -1;
+    actual(llevar);
+    contar();
+  }
+
+  function ir(paso) {
+    if (!hits.length) return;
+    k = (k + paso + hits.length) % hits.length;
+    actual(true);
+    contar();
+  }
+
+  /** La lectura se pintó (o se repintó): el campo es nuevo y los rangos viejos murieron. */
+  function montar(clase) {
+    if (clase !== id) { id = clase; q = ''; k = -1; }
+    const campo = document.querySelector('#view #busca-q');
+    if (!campo) return;
+    campo.value = q;
+    campo.addEventListener('input', () => { q = campo.value; k = 0; aplicar(); });
+    campo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); ir(e.shiftKey ? -1 : 1); }
+      if (e.key === 'Escape' && campo.value) { e.preventDefault(); e.stopPropagation(); campo.value = q = ''; aplicar(); }
+    });
+    document.querySelector('#view #busca-ant').addEventListener('click', () => ir(-1));
+    document.querySelector('#view #busca-sig').addEventListener('click', () => ir(1));
+    aplicar(false);
+  }
+
+  function enfocar() {
+    const campo = document.querySelector('#view #busca-q');
+    if (campo) { campo.focus(); campo.select(); }
+  }
+
+  /** Al salir de la lectura: los rangos apuntan a nodos que ya no están. */
+  function soltar() { id = null; q = ''; hits = []; k = -1; borrar(); }
+
+  return { montar, enfocar, soltar };
+})();
 
 /* ══ El panel: correcciones y términos de la clase abierta ═══════════════════ */
 
@@ -696,7 +799,10 @@ async function exportar(id, formato) {
       if (!ok) return;
       r = await V.exportar(id, formato, true);
     }
-    Toast.show({ title: 'Guardado al lado del audio', text: r.ruta, icon: 'download' });
+    Toast.show({
+      title: 'Guardado al lado del audio', text: r.ruta, icon: 'download', duration: 7000,
+      action: { label: 'Mostrar en la carpeta', run: () => attempt(() => V.mostrar(r.ruta), { errorTitle: 'No se pudo mostrar' }) },
+    });
   }, { errorTitle: 'No se pudo exportar' });
 }
 
@@ -882,7 +988,7 @@ async function quitarGrupo(m) {
 
 /* ══ Vista: Ajustes ══════════════════════════════════════════════════════════ */
 
-const MODELOS = ['large-v3-turbo', 'large-v3', 'medium', 'small'];
+const MODELOS = ['large-v3-turbo', 'large-v3', 'medium', 'small', 'base'];
 const PARRAFOS = [{ seg: 30, nombre: 'Cortos, 30 s' }, { seg: 55, nombre: 'Medios, 55 s' }, { seg: 90, nombre: 'Largos, 90 s' }];
 
 function viewAjustes() {
@@ -907,12 +1013,20 @@ function viewAjustes() {
               </div>
             </div>
             <div class="op-field">
+              <label class="op-field__label">Dispositivo</label>
+              <div class="op-segmented" id="set-dispositivo" style="max-width:280px">
+                <button class="op-segmented__opt${st.dispositivo !== 'cpu' ? ' is-active' : ''}" data-value="auto">Automático</button>
+                <button class="op-segmented__opt${st.dispositivo === 'cpu' ? ' is-active' : ''}" data-value="cpu">Solo CPU</button>
+              </div>
+              <span class="op-field__hint">Automático usa la placa de video si hay una y, si no, la CPU. En CPU tarda varias veces más: conviene un modelo más chico, como small. Vale desde el próximo audio.</span>
+            </div>
+            <div class="op-field">
               <label class="op-field__label">Python</label>
               <input class="op-input op-input--mono" id="set-python" spellcheck="false" value="${esc(st.python || 'python')}">
               <span class="op-field__hint">El Python que tiene instalado openai-whisper y torch. Vale desde la próxima vez que arranque el motor.</span>
             </div>
             <div class="op-kv">
-              <span class="op-kv__k">Corre en</span><span class="op-kv__v">${esc(S.motor.gpu || (S.motor.dispositivo === 'cpu' ? 'CPU' : 'Se sabe cuando arranca el motor'))}</span>
+              <span class="op-kv__k">Corre en</span><span class="op-kv__v">${esc(S.motor.dispositivo === 'cpu' ? 'CPU' : S.motor.gpu || 'Se sabe cuando arranca el motor')}</span>
             </div>
           </div></div>
         </div>
@@ -926,6 +1040,16 @@ function viewAjustes() {
                 ${PARRAFOS.map((p) => `<button class="op-segmented__opt${(st.parrafo || 55) === p.seg ? ' is-active' : ''}" data-value="${p.seg}">${p.nombre}</button>`).join('')}
               </div>
               <span class="op-field__hint">Cada cuánto corta el texto, en la lectura y en lo que se exporta. Siempre corta en el final de una oración.</span>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="op-section">
+          <div class="op-section__head"><span class="op-section__title">Ventana</span></div>
+          <div class="op-card"><div class="op-card__body">
+            <div class="op-field">
+              <label class="op-row" style="gap:10px"><button class="op-switch${st.cerrarAlTray !== false ? ' is-on' : ''}" id="set-tray"></button> <span class="op-label">Al cerrar, seguir en la bandeja</span></label>
+              <span class="op-field__hint">La X esconde la ventana y la cola sigue transcribiendo; cuando un audio termina, avisa Windows. Para salir del todo: clic derecho en el ícono de la bandeja, «Salir».</span>
             </div>
           </div></div>
         </div>
@@ -986,6 +1110,8 @@ function viewAjustes() {
   });
   bindSwitcher(document.getElementById('set-idioma'), (value) => persist({ idioma: value }));
   bindSwitcher(document.getElementById('set-parrafo'), (value) => persist({ parrafo: Number(value) }));
+  bindSwitcher(document.getElementById('set-dispositivo'), (value) => persist({ dispositivo: value }));
+  bindToggle(document.getElementById('set-tray'), (on) => persist({ cerrarAlTray: on }));
   const py = document.getElementById('set-python');
   py.addEventListener('blur', () => { const v = py.value.trim() || 'python'; if (v !== S.settings.python) persist({ python: v }); });
 }
@@ -1124,6 +1250,12 @@ function wireShell() {
       e.target.closest('.vb-voc').querySelector('[data-action="voc-agregar"]').click();
       return;
     }
+    // Ctrl+F: al buscador de la lectura.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f' && Router.name === 'clase' && !document.querySelector('#op-layer .op-modal')) {
+      e.preventDefault();
+      Busca.enfocar();
+      return;
+    }
     // Espacio reproduce o pausa mientras se lee una clase.
     if (e.key === ' ' && Router.name === 'clase' && !enCampo && !e.target.closest?.('button') && !document.querySelector('#op-layer .op-modal') && !Menu.isOpen) {
       e.preventDefault();
@@ -1179,7 +1311,7 @@ function updateChrome() {
   }[m.fase] || '';
   const vivo = m.fase === 'arrancando' || m.fase === 'cargando' || m.fase === 'transcribiendo';
   swap(document.getElementById('stat-motor'), `${mark(vivo ? 'running' : 'idle')}<span>${esc(texto)}</span>`, { relevo: true });
-  swapText(document.getElementById('stat-equipo'), [m.modelo || S.settings.modelo, m.gpu || (m.dispositivo === 'cpu' ? 'CPU' : '')].filter(Boolean).join(' · '));
+  swapText(document.getElementById('stat-equipo'), [m.modelo || S.settings.modelo, m.dispositivo === 'cpu' ? 'CPU' : m.gpu || ''].filter(Boolean).join(' · '));
 
   const ctx = document.getElementById('titlebar-context');
   const abierta = Router.name === 'clase' ? S.clases.get(Router.param) : null;
@@ -1189,7 +1321,7 @@ function updateChrome() {
 /** El panel y el reproductor acompañan a la vista: solo con una clase lista abierta. */
 function alNavegar() {
   const leyendo = Router.name === 'clase' && S.abierta?.clase.estado === 'lista';
-  if (!leyendo) { Shell.set({ panel: false, composer: false }); Player.soltar(); }
+  if (!leyendo) { Shell.set({ panel: false, composer: false }); Player.soltar(); Busca.soltar(); }
   pintarPanel();
   updateChrome();
 }
