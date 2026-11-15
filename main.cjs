@@ -31,13 +31,23 @@
                anteriores es blanco hardcodeado y no hay forma de taparlo.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, Notification, screen, shell } = require('electron');
 const path = require('path');
 const ipc = require('./src/ipc.cjs');
 const store = require('./src/store.cjs');
 const { keepAlive } = require('./src/recover.cjs');
 const motor = require('./src/motor.cjs');
 const actualizador = require('./src/actualizador.cjs');
+const bandeja = require('./src/bandeja.cjs');
+
+/* ── Cerrar no es salir ──────────────────────────────────────────────────────
+   Con `cerrarAlTray` (Ajustes → Ventana, prendido de fábrica) la X esconde la
+   ventana y Verba sigue en la bandeja, transcribiendo lo que haya en la cola.
+   Eso obliga a poder DESACTIVAR el cierre desde adentro, o la app no se muere
+   nunca: `saliendo` es esa llave, y la levantan los cierres legítimos (el
+   menú de la bandeja, el reinicio del actualizador, apagar Windows). */
+let saliendo = false;
+let cerrarAlTray = true;
 
 /* Color base de arranque. Tiene que coincidir con --op-bg de tokens.css.
    Como --op-bg es oklch y Electron solo entiende hex, el renderer se lo vuelve
@@ -205,6 +215,13 @@ function createWindow(state) {
      Windows avisa y después puede cortar. Lo tuyo que quede pendiente (un
      borrador con debounce) va acá también, con writeSync. */
   win.on('close', flushWindowState);
+  /* La X, Alt+F4 y `win:close` terminan todos acá. Esconder en vez de cerrar
+     deja la ventana viva: al volver está como quedó, y la cola no se entera. */
+  win.on('close', (e) => {
+    if (saliendo || !cerrarAlTray) return;
+    e.preventDefault();
+    win.hide();
+  });
   win.on('query-session-end', flushWindowState);
   win.on('session-end', flushWindowState);
 
@@ -247,8 +264,60 @@ ipcMain.on('win:set-acrilico', (_e, on) => {
   win.setBackgroundColor(on ? CLEAR : bgHex);
 });
 
+/** Trae la ventana al frente: desde la bandeja, un aviso o un segundo arranque. */
+function mostrarVentana() {
+  if (!win || win.isDestroyed()) { loadWindowState().then(createWindow); return; }
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/* Lo que cuenta la cola, visto desde afuera de la ventana: el rótulo del ícono
+   de la bandeja y, si la ventana está escondida, un aviso de Windows cuando un
+   audio termina (adentro lo dice un toast, pero ahí no hay quien lo vea). */
+let corriendo = null;   // { id, nombre }
+function alContarLaCola(ev) {
+  if (ev.tipo === 'progreso') {
+    if (corriendo) bandeja.rotular(`${corriendo.nombre} · ${Math.floor(ev.p * 100)} %`);
+    return;
+  }
+  if (ev.tipo === 'motor') {
+    const id = ev.estado.corriendo;
+    if (!id) { corriendo = null; bandeja.rotular(''); return; }
+    if (corriendo?.id !== id) corriendo = { id, nombre: motor.lista().find((c) => c.id === id)?.nombre || '' };
+    bandeja.rotular(ev.estado.fase === 'transcribiendo' ? `${corriendo.nombre} · ${Math.floor((ev.estado.p || 0) * 100)} %` : `Preparando ${corriendo.nombre}`);
+    return;
+  }
+  if (ev.tipo === 'clase' && corriendo?.id === ev.clase.id && (ev.clase.estado === 'lista' || ev.clase.estado === 'error')) {
+    const escondida = !win || win.isDestroyed() || !win.isVisible();
+    if (escondida && Notification.isSupported()) {
+      const quedan = motor.lista().filter((c) => c.estado === 'cola').length;
+      const n = new Notification({
+        title: ev.clase.estado === 'lista' ? 'Transcripción lista' : 'No se pudo transcribir',
+        body: `${ev.clase.nombre}${quedan ? ` · ${quedan === 1 ? 'queda 1' : `quedan ${quedan}`} en la cola` : ''}`,
+        silent: true,
+      });
+      n.on('click', mostrarVentana);
+      n.show();
+    }
+  }
+}
+
+/* ── Una sola Verba a la vez ─────────────────────────────────────────────────
+   Dos instancias escribirían los mismos JSON y levantarían dos motores, y la
+   segunda abriría una ventana vacía mientras la primera está en la bandeja.
+   La que llega segunda le pasa el turno a la que ya estaba y se va. */
+const unica = app.requestSingleInstanceLock();
+if (!unica) app.quit();
+else app.on('second-instance', mostrarVentana);
+
 app.whenReady().then(async () => {
-  ipc.register();
+  if (!unica) return;
+  // Windows firma los avisos con este id: tiene que ser el appId del instalador.
+  app.setAppUserModelId('com.umbrovex.verba');
+  cerrarAlTray = (await store.loadSettings().catch(() => ({}))).cerrarAlTray !== false;
+  ipc.register({ alGuardarAjustes: (st) => { cerrarAlTray = st?.cerrarAlTray !== false; } });
+  bandeja.crear({ mostrar: mostrarVentana, salir: () => { saliendo = true; app.quit(); } });
   /* Verba es solo la variante oscura de Opal (Fran probó el acrílico el
      15/11/2026 y prefirió esta): la ventana nace opaca y `acrilico` queda en
      false. Lo que la plantilla trae para el acrílico sigue arriba, sin uso. */
@@ -257,6 +326,7 @@ app.whenReady().then(async () => {
      de la ventana: lo que quedó en cola de la sesión anterior sigue solo. */
   motor.init((ev) => {
     if (win && !win.isDestroyed()) win.webContents.send('verba:ev', ev);
+    alContarLaCola(ev);
   }).catch((err) => console.error('[motor] no arrancó:', err));
   /* Actualizaciones: busca un rato después de abrir y cada cuatro horas. Una
      versión nueva se baja sola y entra al cerrar la app (src/actualizador.cjs). */
@@ -269,8 +339,14 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+/* Los cierres de verdad. `quitAndInstall` del actualizador dispara
+   `before-quit`: sin esta línea la ventana se escondería en vez de cerrarse y
+   la versión nueva no entraría nunca. */
+app.on('before-quit', () => { saliendo = true; });
+app.on('session-end', () => { saliendo = true; });
+
 // El motor es un proceso aparte: si la app se va, se va con ella.
-app.on('will-quit', () => motor.apagar());
+app.on('will-quit', () => { motor.apagar(); bandeja.destruir(); });
 
 app.on('activate', async () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow(await loadWindowState());

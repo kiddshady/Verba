@@ -45,7 +45,7 @@ function handle(channel, fn) {
   });
 }
 
-function register() {
+function register({ alGuardarAjustes } = {}) {
   handle('app:info', () => ({
     name: app.getName(),
     version: app.getVersion(),
@@ -104,7 +104,11 @@ function register() {
   handle('update:instalar', () => actualizador.instalar());
 
   handle('settings:get', () => store.loadSettings());
-  handle('settings:save', (patch) => store.saveSettings(patch));
+  handle('settings:save', async (patch) => {
+    const st = await store.saveSettings(patch);
+    alGuardarAjustes?.(st);   // el proceso principal usa algunos (cerrarAlTray)
+    return st;
+  });
 
   handle('doc:read', (name, fallback = null) => store.doc(name, fallback).read());
   handle('doc:write', (name, data) => store.doc(name).write(data).then(() => true));
