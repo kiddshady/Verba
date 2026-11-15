@@ -6,9 +6,9 @@
      · build/icon.png (1024, el maestro) y build/icon.ico (16 a 256): con la
        baldosa a sangre, cada tamaño dibujado desde el vector a su tamaño, el
        MISMO dibujo en todos, sin versiones simplificadas para los chicos;
-     · la marca de la titlebar, la del rail y la del splash en
-       renderer/index.html (entre <!-- marca:X --> y <!-- /marca:X -->),
-       exactas y con baldosa.
+     · las marcas de renderer/index.html (entre <!-- marca:X --> y
+       <!-- /marca:X -->): la del splash, exacta y con baldosa; la de la
+       titlebar y la del rail, las mismas barras sin baldosa.
 
        npm run icon
        npx electron tools/icono.cjs --muestra <archivo.png>   la hoja de control
@@ -16,7 +16,7 @@
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { marca } = require('./marca.cjs');
+const { marca, ENCUADRE_SUELTO } = require('./marca.cjs');
 
 const OUT = path.join(__dirname, '..', 'build');
 const INDEX = path.join(__dirname, '..', 'renderer', 'index.html');
@@ -90,10 +90,12 @@ app.whenReady().then(async () => {
   const pngs = [];
   for (const tam of TAMANOS) pngs.push({ tam, buf: await png(tam) });
   fs.writeFileSync(path.join(OUT, 'icon.ico'), ico(pngs));
-  const inline = (id, clase) => marca({ id }).replace('<svg xmlns="http://www.w3.org/2000/svg" ', `<svg class="${clase}" aria-hidden="true" `);
-  ponerEnIndex('titlebar', inline('vb-tb', 'vb-marca'));
-  ponerEnIndex('rail', inline('vb-rl', 'vb-marca'));
-  ponerEnIndex('splash', inline('vb-sp', 'vb-marca'));
+  const inline = (opciones) => marca(opciones).replace('<svg xmlns="http://www.w3.org/2000/svg" ', '<svg class="vb-marca" aria-hidden="true" ');
+  // La titlebar y su gemela del rail (la que se ve sin titlebar): sin baldosa.
+  const suelta = { baldosa: false, encuadre: ENCUADRE_SUELTO };
+  ponerEnIndex('titlebar', inline({ ...suelta, id: 'vb-tb' }));
+  ponerEnIndex('rail', inline({ ...suelta, id: 'vb-rl' }));
+  ponerEnIndex('splash', inline({ id: 'vb-sp' }));
   process.stdout.write(`${path.join(OUT, 'icon.png')} (1024)\n${path.join(OUT, 'icon.ico')} (${TAMANOS.join(', ')})\n${INDEX} (titlebar, rail y splash)\n`);
   app.exit(0);
 });

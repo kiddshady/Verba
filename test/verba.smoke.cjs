@@ -91,6 +91,7 @@ app.whenReady().then(async () => {
   console.log('\n1. Arranque');
   ok('el splash se va', await hasta(`!document.getElementById('boot-splash')`));
   ok('la marca de la titlebar es el ícono', await js(`return document.querySelector('.op-titlebar .vb-marca path')?.getAttribute('d')?.startsWith('M16 27')`));
+  ok('y va sin baldosa: solo las barras', await js(`const m = document.querySelector('.op-titlebar .vb-marca'); return !m.querySelector('rect, circle') && m.getAttribute('viewBox') === '11 11 42 42'`));
   ok('abre en la Cola: hay algo esperando', await hasta(`document.querySelector('#view #cola-filas')`));
 
   console.log('\n2. La cola');
