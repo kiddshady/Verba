@@ -66,8 +66,9 @@ contextBridge.exposeInMainWorld('opal', {
     exportar: (id, formato, pisar) => call('verba:exportar', id, formato, pisar),
     texto: (id) => call('verba:texto', id),
     vocab: () => call('verba:vocab'),
-    guardarMateria: (nombre, datos) => call('verba:materia-guardar', nombre, datos),
-    quitarMateria: (nombre) => call('verba:materia-quitar', nombre),
+    guardarGrupo: (nombre, datos) => call('verba:grupo-guardar', nombre, datos),
+    quitarGrupo: (nombre) => call('verba:grupo-quitar', nombre),
+    renombrarGrupo: (viejo, nuevo) => call('verba:grupo-renombrar', viejo, nuevo),
     mostrar: (ruta) => call('verba:mostrar', ruta),
     /** La ruta en disco de un archivo soltado sobre la ventana. */
     rutaDe: (file) => { try { return webUtils.getPathForFile(file); } catch { return null; } },

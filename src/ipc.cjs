@@ -77,8 +77,9 @@ function register() {
   handle('verba:exportar', (id, formato, pisar) => motor.exportar(String(id), String(formato), pisar === true));
   handle('verba:texto', (id) => motor.textoPlano(String(id)));
   handle('verba:vocab', () => motor.vocabularios());
-  handle('verba:materia-guardar', (nombre, datos) => motor.guardarMateria(nombre, datos || {}));
-  handle('verba:materia-quitar', (nombre) => motor.quitarMateria(String(nombre)));
+  handle('verba:grupo-guardar', (nombre, datos) => motor.guardarGrupo(nombre, datos || {}));
+  handle('verba:grupo-quitar', (nombre) => motor.quitarGrupo(String(nombre)));
+  handle('verba:grupo-renombrar', (viejo, nuevo) => motor.renombrarGrupo(String(viejo), nuevo));
   // Mostrar un archivo en el Explorador. Solo si existe: no abre nada.
   handle('verba:mostrar', (ruta) => {
     if (!fs.existsSync(String(ruta))) throw new Error('Ese archivo ya no está.');

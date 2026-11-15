@@ -67,11 +67,13 @@ const DEFAULT_SETTINGS = {
   python: 'python',
   modelo: 'large-v3-turbo',
   idioma: 'es',             // o 'auto': que lo detecte Whisper
-  /** La materia del último audio que se agregó: la que propone el diálogo. */
-  ultimaMateria: '',
+  /** El grupo del último audio que se agregó: el que propone el diálogo. */
+  ultimoGrupo: '',
   /** El reproductor. */
   seguirAudio: true,
   velocidad: 1,
+  /** Cuántos segundos junta cada párrafo, en la lectura y en lo exportado. */
+  parrafo: 55,
 };
 
 /** Migraciones: cada función lleva el archivo de la versión N a la N+1.

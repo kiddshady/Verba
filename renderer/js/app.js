@@ -5,9 +5,9 @@
    y se piden las cosas por window.opal.verba.
 
      Cola          lo que espera y lo que se está transcribiendo
-     Biblioteca    las clases listas, por materia
+     Biblioteca    las transcripciones listas, por grupo
      Clase         el texto con sus tiempos, el reproductor y las correcciones
-     Vocabularios  términos y correcciones por materia
+     Vocabularios  términos y correcciones por grupo
      Ajustes       el motor y los datos
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -37,7 +37,7 @@ const S = {
   info: null,
   settings: {},
   clases: new Map(),     // id → resumen (sin los segmentos)
-  vocab: { materias: {} },
+  vocab: { grupos: {} },
   motor: { fase: 'apagado', corriendo: null, p: 0 },
   formatos: [],
   abierta: null,         // la clase que se está leyendo: { clase, parrafos, usos, picos, url }
@@ -48,14 +48,14 @@ const S = {
 const lista = () => [...S.clases.values()];
 const pendientes = () => lista().filter((c) => c.estado !== 'lista')
   .sort((a, b) => (a.estado === 'corriendo' ? -1 : b.estado === 'corriendo' ? 1 : 0) || a.creado - b.creado);
-const listas = (materia = null) => lista().filter((c) => c.estado === 'lista' && (!materia || c.materia === materia))
+const listas = (grupo = null) => lista().filter((c) => c.estado === 'lista' && (!grupo || c.grupo === grupo))
   .sort((a, b) => (b.terminado || 0) - (a.terminado || 0));
-const materias = () => {
-  const m = new Set(Object.keys(S.vocab.materias));
-  for (const c of S.clases.values()) if (c.materia) m.add(c.materia);
+const grupos = () => {
+  const m = new Set(Object.keys(S.vocab.grupos));
+  for (const c of S.clases.values()) if (c.grupo) m.add(c.grupo);
   return [...m];
 };
-const terminosDe = (materia) => S.vocab.materias[materia]?.terminos || '';
+const terminosDe = (grupo) => S.vocab.grupos[grupo]?.terminos || '';
 const contarTerminos = (t) => String(t || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean).length;
 
 /* ── Tiempos ─────────────────────────────────────────────────────────────── */
@@ -122,7 +122,7 @@ function alEvento(ev) {
     updateChrome();
     if (Router.name === 'clase' && Router.param === ev.clase.id) {
       // solo si cambió algo que se ve: el aviso del audio leído no repinta la lectura
-      if (antes?.estado !== ev.clase.estado || antes?.nombre !== ev.clase.nombre || antes?.materia !== ev.clase.materia) recargarClase();
+      if (antes?.estado !== ev.clase.estado || antes?.nombre !== ev.clase.nombre || antes?.grupo !== ev.clase.grupo) recargarClase();
     } else ponerAlDia();
   }
 }
@@ -135,24 +135,24 @@ function ponerAlDia() {
 
 /* ══ Agregar audios ══════════════════════════════════════════════════════════ */
 
-/** Un `.op-select` de materias. `alElegir(materia)`; devuelve cómo leer la elegida. */
-function selectorMateria(btn, inicial, alElegir) {
+/** Un `.op-select` de grupos. `alElegir(grupo)`; devuelve cómo leer la elegida. */
+function selectorGrupo(btn, inicial, alElegir) {
   let elegida = inicial || '';
   const val = btn.querySelector('.op-select__value');
-  val.textContent = elegida || 'Sin materia';
+  val.textContent = elegida || 'Sin grupo';
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     Menu.show(btn, [
-      ...materias().map((m) => ({ label: m, selected: elegida === m, onSelect: () => poner(m) })),
+      ...grupos().map((m) => ({ label: m, selected: elegida === m, onSelect: () => poner(m) })),
       { sep: true },
-      { label: 'Sin materia', selected: !elegida, onSelect: () => poner('') },
+      { label: 'Sin grupo', selected: !elegida, onSelect: () => poner('') },
     ]);
   });
   function poner(m) {
     if (m === elegida) return;
     const anterior = elegida;
     elegida = m;
-    swapText(val, m || 'Sin materia', { relevo: true });
+    swapText(val, m || 'Sin grupo', { relevo: true });
     alElegir?.(m, anterior);
   }
   return () => elegida;
@@ -162,7 +162,7 @@ async function agregar(archivos = null) {
   const elegidos = archivos || await attempt(() => V.elegir(), { errorTitle: 'No se pudo abrir el diálogo' });
   if (!elegidos || !elegidos.length) return;
 
-  const inicial = (Router.name === 'biblioteca' && Router.param) || S.settings.ultimaMateria || '';
+  const inicial = (Router.name === 'biblioteca' && Router.param) || S.settings.ultimoGrupo || '';
   const body = document.createElement('div');
   body.className = 'op-col';
   body.style.gap = '16px';
@@ -173,18 +173,18 @@ async function agregar(archivos = null) {
         <div class="vb-archivo">${Icons.svg('onda')}<span class="op-truncate">${esc(a.archivo)}</span></div>`).join('')}</div>
     </div>
     <div class="op-field">
-      <label class="op-field__label">Materia</label>
-      <button class="op-select" id="ag-materia" style="max-width:240px"><span class="op-select__value"></span>${Icons.svg('chevronDown')}</button>
+      <label class="op-field__label">Grupo</label>
+      <button class="op-select" id="ag-grupo" style="max-width:240px"><span class="op-select__value"></span>${Icons.svg('chevronDown')}</button>
     </div>
     <div class="op-field">
-      <label class="op-field__label">Términos de la clase</label>
-      <textarea class="op-textarea" id="ag-terminos" rows="3" spellcheck="false" placeholder="reserpina, VMAT, iproniazida, isoprenalina"></textarea>
+      <label class="op-field__label">Términos</label>
+      <textarea class="op-textarea" id="ag-terminos" rows="3" spellcheck="false" placeholder="Nombres propios, siglas, palabras técnicas"></textarea>
       <span class="op-field__hint">Nombres propios y palabras técnicas, separados por coma. Whisper los usa para escribirlos bien.</span>
     </div>`;
   const campo = body.querySelector('#ag-terminos');
   campo.value = terminosDe(inicial);
-  const materia = selectorMateria(body.querySelector('#ag-materia'), materias().includes(inicial) ? inicial : '', (m, anterior) => {
-    // si no se tocaron los términos, se cambian por los de la materia nueva
+  const grupo = selectorGrupo(body.querySelector('#ag-grupo'), grupos().includes(inicial) ? inicial : '', (m, anterior) => {
+    // si no se tocaron los términos, se cambian por los del grupo nuevo
     if (campo.value.trim() === terminosDe(anterior).trim()) campo.value = terminosDe(m);
   });
 
@@ -198,9 +198,9 @@ async function agregar(archivos = null) {
   if (!ok) return;
 
   await attempt(async () => {
-    const m = materia();
-    const nuevos = await V.agregar(elegidos.map((a) => a.ruta), { materia: m, terminos: campo.value });
-    if (m !== S.settings.ultimaMateria) persist({ ultimaMateria: m });
+    const m = grupo();
+    const nuevos = await V.agregar(elegidos.map((a) => a.ruta), { grupo: m, terminos: campo.value });
+    if (m !== S.settings.ultimoGrupo) persist({ ultimoGrupo: m });
     Toast.show({ title: `${plural(nuevos.length, 'audio', 'audios')} en la cola`, text: nuevos.map((c) => c.nombre).slice(0, 3).join(', '), icon: 'onda' });
     Router.go('cola');
   }, { errorTitle: 'No se pudieron agregar' });
@@ -226,7 +226,7 @@ function subCola() {
 }
 
 function filaCola(c) {
-  const sub = [c.materia, c.archivo, c.terminos ? plural(contarTerminos(c.terminos), 'término', 'términos') : ''].filter(Boolean).join(' · ');
+  const sub = [c.grupo, c.archivo, c.terminos ? plural(contarTerminos(c.terminos), 'término', 'términos') : ''].filter(Boolean).join(' · ');
   const estado = c.estado === 'corriendo'
     ? `<div class="vb-fila__renglon"><b data-pct></b><span class="op-truncate" data-fase></span></div><div class="op-meter"><div class="op-meter__fill"></div></div>`
     : c.estado === 'error'
@@ -299,7 +299,7 @@ function viewCola() {
 function filaBib(c) {
   const q = c.calidad || { alta: 0, bucles: 0 };
   return `<div class="vb-fila vb-fila--bib" role="button" tabindex="0" data-abrir="${esc(c.id)}">
-    <div style="min-width:0"><div class="vb-fila__nombre op-truncate">${esc(c.nombre)}</div><div class="vb-fila__sub op-truncate">${esc([c.materia, c.archivo].filter(Boolean).join(' · '))}</div></div>
+    <div style="min-width:0"><div class="vb-fila__nombre op-truncate">${esc(c.nombre)}</div><div class="vb-fila__sub op-truncate">${esc([c.grupo, c.archivo].filter(Boolean).join(' · '))}</div></div>
     <span class="vb-fila__dato" data-tip="${esc(c.terminado ? fmtDate(c.terminado, { withTime: true }) : '')}">${esc(c.terminado ? fechaCorta(c.terminado) : '')}</span>
     <span class="vb-fila__dato">${reloj(c.dur)}</span>
     <div class="vb-calmini"><b>${q.alta} %</b><div class="op-meter" style="--op-pct:${q.alta}%"><div class="op-meter__fill"></div></div></div>
@@ -308,31 +308,31 @@ function filaBib(c) {
   </div>`;
 }
 
-const subBiblioteca = (materia) => {
-  const n = listas(materia).length;
-  return `${materia ? `${materia} · ` : ''}${plural(n, 'clase', 'clases')}`;
+const subBiblioteca = (grupo) => {
+  const n = listas(grupo).length;
+  return `${grupo ? `${grupo} · ` : ''}${plural(n, 'transcripción', 'transcripciones')}`;
 };
 
 function ponerBiblioteca(entrar = true) {
   const box = document.querySelector('#view #bib-filas');
   if (!box) return;
-  const materia = Router.param;
-  const l = listas(materia);
+  const grupo = Router.param;
+  const l = listas(grupo);
   reconcile(box, l.map((c) => ({ key: c.id, html: filaBib(c) })), { enter: entrar });
   document.querySelector('#view #bib-cols').hidden = !l.length;
   swap(document.querySelector('#view #bib-vacia'), l.length ? '' : `<div class="op-empty" style="margin:40px auto">${Icons.svg('inbox')}
-    <div class="op-empty__title">${materia ? `No hay clases de ${esc(materia)}` : 'Todavía no hay transcripciones'}</div>
-    <div class="op-empty__text">${materia ? 'Las que agregues con esta materia aparecen acá cuando terminan.' : 'Agregá un audio: cuando termina de transcribirse, queda acá con su texto, sus tiempos y su calidad.'}</div>
-    ${materia ? '' : '<div class="op-row" style="margin-top:6px"><button class="op-btn op-btn--secondary op-flashable" data-action="agregar"><i data-icon="plus"></i> Agregar audios</button></div>'}</div>`);
+    <div class="op-empty__title">${grupo ? `No hay transcripciones en ${esc(grupo)}` : 'Todavía no hay transcripciones'}</div>
+    <div class="op-empty__text">${grupo ? 'Los audios que agregues con este grupo aparecen acá cuando terminan.' : 'Agregá un audio: cuando termina de transcribirse, queda acá con su texto, sus tiempos y su calidad.'}</div>
+    ${grupo ? '' : '<div class="op-row" style="margin-top:6px"><button class="op-btn op-btn--secondary op-flashable" data-action="agregar"><i data-icon="plus"></i> Agregar audios</button></div>'}</div>`);
   Icons.mount(document.querySelector('#view #bib-vacia'));
   const sub = document.querySelector('#view .op-viewhead__sub');
-  if (sub) swapText(sub, subBiblioteca(materia));
+  if (sub) swapText(sub, subBiblioteca(grupo));
 }
 
-function viewBiblioteca(materia) {
-  paint(head({ title: 'Biblioteca', sub: subBiblioteca(materia) }) + `
+function viewBiblioteca(grupo) {
+  paint(head({ title: 'Biblioteca', sub: subBiblioteca(grupo) }) + `
     <div style="flex:0 0 auto;padding-top:8px"><div class="vb-cols vb-fila--bib" id="bib-cols">
-      <span>Clase</span><span>Lista el</span><span>Dura</span><span data-tip="Parte del tiempo en que Whisper estuvo seguro de lo que escribía">Confianza alta</span><span data-tip="Tramos donde se quedó repitiendo">Bucles</span><span></span>
+      <span>Nombre</span><span>Lista el</span><span>Dura</span><span data-tip="Parte del tiempo en que Whisper estuvo seguro de lo que escribía">Confianza alta</span><span data-tip="Tramos donde se quedó repitiendo">Bucles</span><span></span>
     </div></div>
     <div class="op-scroll op-grow">
       <div class="vb-filas" id="bib-filas"></div>
@@ -347,7 +347,7 @@ function viewBiblioteca(materia) {
 async function abrirClase(id) {
   await attempt(async () => {
     S.abierta = await V.abrir(id);
-    if (!S.abierta) throw new Error('Esa clase ya no está.');
+    if (!S.abierta) throw new Error('Esa transcripción ya no está.');
     Router.go('clase', id);
   }, { errorTitle: 'No se pudo abrir' });
 }
@@ -355,7 +355,7 @@ async function abrirClase(id) {
 /** Vuelve a pedir la clase abierta y repinta la lectura sin perder el lugar. */
 async function recargarClase() {
   const id = Router.param;
-  const v = await attempt(() => V.abrir(id), { errorTitle: 'No se pudo releer la clase' });
+  const v = await attempt(() => V.abrir(id), { errorTitle: 'No se pudo releer la transcripción' });
   if (!v || Router.name !== 'clase' || Router.param !== id) return;
   S.abierta = v;
   Router.refresh();
@@ -371,13 +371,13 @@ const parteHTML = (x) => (x.inv
 function viewClase(id) {
   const v = S.abierta && S.abierta.clase.id === id ? S.abierta : null;
   if (!v) {
-    paint(head({ title: 'Clase', crumbs: [{ label: 'Biblioteca', view: 'biblioteca' }] })
-      + empty({ icon: 'alert', title: 'Esa clase ya no está', text: 'Puede que la hayas quitado de la biblioteca.' }));
+    paint(head({ title: 'Transcripción', crumbs: [{ label: 'Biblioteca', view: 'biblioteca' }] })
+      + empty({ icon: 'alert', title: 'Esa transcripción ya no está', text: 'Puede que la hayas quitado de la biblioteca.' }));
     return;
   }
   const c = v.clase;
   const crumbs = [{ label: 'Biblioteca', view: 'biblioteca' }];
-  if (c.materia) crumbs.push({ label: c.materia, view: 'biblioteca', param: c.materia });
+  if (c.grupo) crumbs.push({ label: c.grupo, view: 'biblioteca', param: c.grupo });
 
   if (c.estado !== 'lista') {
     const texto = {
@@ -445,9 +445,9 @@ function panelCuerpo() {
   if (S.tab === 'term') {
     return `<div class="vb-panelbloque">
       <p class="vb-ayuda">Lo que se le dijo a Whisper antes de empezar, para que escriba bien los nombres.</p>
-      <textarea class="op-textarea" id="pn-terminos" rows="6" spellcheck="false" placeholder="reserpina, VMAT, iproniazida">${esc(c.terminos || '')}</textarea>
+      <textarea class="op-textarea" id="pn-terminos" rows="6" spellcheck="false" placeholder="Nombres propios, siglas, palabras técnicas">${esc(c.terminos || '')}</textarea>
       <button class="op-btn op-btn--secondary op-flashable" data-action="rehacer"><i data-icon="retry"></i> Volver a transcribir</button>
-      ${c.materia ? `<button class="op-btn op-btn--ghost op-flashable" data-action="terminos-a-materia">Guardar como términos de ${esc(c.materia)}</button>` : ''}
+      ${c.grupo ? `<button class="op-btn op-btn--ghost op-flashable" data-action="terminos-a-grupo">Guardar como términos de ${esc(c.grupo)}</button>` : ''}
     </div>`;
   }
   const usos = v.usos.length
@@ -458,17 +458,17 @@ function panelCuerpo() {
         </div>
         <div class="vb-corr__donde">${u.en.map((t) => `<button class="vb-min" data-seg="${t}">${reloj(t)}</button>`).join('')}</div>
       </div>`).join('')
-    : '<p class="vb-vacio">Ninguna corrección del vocabulario aparece en esta clase.</p>';
+    : '<p class="vb-vacio">Ninguna corrección del vocabulario aparece en este audio.</p>';
   return `<div class="vb-panelbloque">
-    <p class="vb-ayuda">${c.materia
-    ? `Del vocabulario de ${esc(c.materia)}. Se aplican al mostrar y al exportar: el texto de Whisper queda guardado como salió.`
-    : 'Esta clase no tiene materia. Las correcciones se guardan por materia: asignale una desde el menú de la clase.'}</p>
+    <p class="vb-ayuda">${c.grupo
+    ? `Del vocabulario del grupo ${esc(c.grupo)}. Se aplican al mostrar y al exportar: el texto de Whisper queda guardado como salió.`
+    : 'Este audio no tiene grupo. Las correcciones se guardan por grupo: asignale uno desde el menú, en «Editar».'}</p>
     <div>${usos}</div>
-    ${c.materia ? `<div>
+    ${c.grupo ? `<div>
       <div class="vb-voc__rotulo" style="margin-bottom:6px">Corrección nueva</div>
       <div class="vb-nueva">
-        <input class="op-input" id="pn-de" spellcheck="false" placeholder="reserfina" aria-label="Lo que escribió Whisper">
-        <input class="op-input" id="pn-a" spellcheck="false" placeholder="reserpina" aria-label="Cómo va">
+        <input class="op-input" id="pn-de" spellcheck="false" placeholder="Lo que escribió" aria-label="Lo que escribió Whisper">
+        <input class="op-input" id="pn-a" spellcheck="false" placeholder="Cómo va" aria-label="Cómo va">
         <button class="op-iconbtn" data-action="agregar-corr" data-tip="Agregar al vocabulario">${Icons.svg('plus')}</button>
       </div>
       <span class="op-field__hint">Seleccioná una palabra en el texto y queda puesta en el primer campo.</span>
@@ -497,22 +497,22 @@ function pintarPanel() {
 }
 
 async function guardarCorrecciones(correcciones) {
-  const m = S.abierta?.clase.materia;
+  const m = S.abierta?.clase.grupo;
   if (!m) return;
   await attempt(async () => {
-    S.vocab = await V.guardarMateria(m, { correcciones });
+    S.vocab = await V.guardarGrupo(m, { correcciones });
     await recargarClase();
   }, { errorTitle: 'No se pudo guardar el vocabulario' });
 }
 
 function agregarCorreccion() {
   const de = document.querySelector('#panel #pn-de'), a = document.querySelector('#panel #pn-a');
-  const m = S.abierta?.clase.materia;
+  const m = S.abierta?.clase.grupo;
   if (!de || !a || !m) return;
   const d = de.value.trim(), h = a.value.trim();
   if (!d || !h) { (d ? a : de).focus(); return; }
   if (d.toLowerCase() === h.toLowerCase()) { Toast.show({ title: 'Son iguales', text: 'La corrección tiene que cambiar algo.', icon: 'info' }); return; }
-  const actuales = S.vocab.materias[m]?.correcciones || [];
+  const actuales = S.vocab.grupos[m]?.correcciones || [];
   guardarCorrecciones([...actuales.filter((c) => c.de.toLowerCase() !== d.toLowerCase()), { de: d, a: h }]);
 }
 
@@ -718,18 +718,18 @@ async function editarClase(id) {
   body.style.gap = '16px';
   body.innerHTML = `
     <div class="op-field"><label class="op-field__label">Nombre</label><input class="op-input" id="ed-nombre" spellcheck="false"></div>
-    <div class="op-field"><label class="op-field__label">Materia</label>
-      <button class="op-select" id="ed-materia" style="max-width:240px"><span class="op-select__value"></span>${Icons.svg('chevronDown')}</button>
-      <span class="op-field__hint">La materia decide qué vocabulario de correcciones se le aplica.</span></div>`;
+    <div class="op-field"><label class="op-field__label">Grupo</label>
+      <button class="op-select" id="ed-grupo" style="max-width:240px"><span class="op-select__value"></span>${Icons.svg('chevronDown')}</button>
+      <span class="op-field__hint">El grupo decide qué vocabulario de correcciones se le aplica.</span></div>`;
   const nombre = body.querySelector('#ed-nombre');
   nombre.value = c.nombre;
-  const materia = selectorMateria(body.querySelector('#ed-materia'), c.materia);
+  const grupo = selectorGrupo(body.querySelector('#ed-grupo'), c.grupo);
   const ok = await Modal.show({
-    title: 'Editar la clase', body, width: 440,
+    title: 'Editar', body, width: 440,
     actions: [{ label: 'Cancelar', value: null }, { label: 'Guardar', value: true, variant: 'primary' }],
   });
   if (!ok) return;
-  await attempt(() => V.editar(id, { nombre: nombre.value, materia: materia() }), { errorTitle: 'No se pudo guardar' });
+  await attempt(() => V.editar(id, { nombre: nombre.value, grupo: grupo() }), { errorTitle: 'No se pudo guardar' });
 }
 
 async function quitarClase(id) {
@@ -775,19 +775,20 @@ const MENUS = {
 /* ══ Vista: Vocabularios ═════════════════════════════════════════════════════ */
 
 function viewVocabularios() {
-  const ms = Object.keys(S.vocab.materias);
+  const ms = Object.keys(S.vocab.grupos);
   paint(head({
     title: 'Vocabularios',
-    sub: 'Términos y correcciones por materia. Cada clase nueva los hereda.',
-    actions: '<button class="op-btn op-btn--primary op-flashable" data-action="nueva-materia"><i data-icon="plus"></i> Nueva materia</button>',
+    sub: 'Un grupo junta los audios que comparten vocabulario: un tema, un podcast, un cliente.',
+    actions: '<button class="op-btn op-btn--primary op-flashable" data-action="nuevo-grupo"><i data-icon="plus"></i> Nuevo grupo</button>',
   }) + (ms.length ? `
     <div class="op-scroll op-grow"><div class="vb-vocs">${ms.map((m) => {
-    const d = S.vocab.materias[m];
-    const n = lista().filter((c) => c.materia === m).length;
-    return `<section class="vb-voc" data-materia="${esc(m)}">
+    const d = S.vocab.grupos[m];
+    const n = lista().filter((c) => c.grupo === m).length;
+    return `<section class="vb-voc" data-grupo="${esc(m)}">
         <div class="vb-voc__head">
-          <div class="op-grow" style="min-width:0"><div class="vb-voc__nombre op-truncate">${esc(m)}</div><div class="op-meta">${n ? plural(n, 'clase', 'clases') : 'Sin clases todavía'}</div></div>
-          <button class="op-iconbtn op-iconbtn--sm" data-action="quitar-materia" data-arg="${esc(m)}" data-tip="Quitar la materia">${Icons.svg('trash')}</button>
+          <div class="op-grow" style="min-width:0"><div class="vb-voc__nombre op-truncate">${esc(m)}</div><div class="op-meta">${n ? plural(n, 'audio', 'audios') : 'Sin audios todavía'}</div></div>
+          <button class="op-iconbtn op-iconbtn--sm" data-action="renombrar-grupo" data-arg="${esc(m)}" data-tip="Cambiar el nombre">${Icons.svg('edit')}</button>
+          <button class="op-iconbtn op-iconbtn--sm" data-action="quitar-grupo" data-arg="${esc(m)}" data-tip="Quitar el grupo">${Icons.svg('trash')}</button>
         </div>
         <div class="op-field">
           <label class="vb-voc__rotulo">Términos</label>
@@ -798,7 +799,7 @@ function viewVocabularios() {
           ${d.correcciones.length ? d.correcciones.map((c, i) => `<div class="vb-pareja">
             <span class="vb-pareja__de">${esc(c.de)}</span>${Icons.svg('arrowRight')}<span>${esc(c.a)}</span>
             <button class="op-iconbtn op-iconbtn--sm" data-action="voc-quitar" data-arg="${i}" data-tip="Sacar">${Icons.svg('close')}</button></div>`).join('')
-        : '<p class="vb-vacio">Ninguna todavía. Se agregan acá o desde una clase abierta.</p>'}
+        : '<p class="vb-vacio">Ninguna todavía. Se agregan acá o desde una transcripción abierta.</p>'}
           <div class="vb-nueva" style="margin-top:8px">
             <input class="op-input" spellcheck="false" placeholder="Lo que escribe Whisper" data-de aria-label="Lo que escribe Whisper">
             <input class="op-input" spellcheck="false" placeholder="Cómo va" data-a aria-label="Cómo va">
@@ -807,53 +808,72 @@ function viewVocabularios() {
         </div>
       </section>`;
   }).join('')}</div><div style="height:32px"></div></div>`
-    : empty({ icon: 'book', title: 'No hay materias', text: 'Creá una para guardarle los términos y las correcciones que comparten sus clases.' })));
+    : empty({ icon: 'book', title: 'No hay grupos', text: 'Creá uno para guardarle los términos y las correcciones que comparten sus audios.' })));
 
   // Los términos se guardan al salir del campo. El nodo muere con el pintado.
   viewEl().querySelectorAll('[data-terminos]').forEach((t) => t.addEventListener('blur', () => {
     const m = t.dataset.terminos;
-    if (t.value === (S.vocab.materias[m]?.terminos || '')) return;
-    attempt(async () => { S.vocab = await V.guardarMateria(m, { terminos: t.value }); }, { errorTitle: 'No se pudieron guardar los términos' });
+    if (t.value === (S.vocab.grupos[m]?.terminos || '')) return;
+    attempt(async () => { S.vocab = await V.guardarGrupo(m, { terminos: t.value }); }, { errorTitle: 'No se pudieron guardar los términos' });
   }));
 }
 
-async function vocCambiar(materia, correcciones) {
+async function vocCambiar(grupo, correcciones) {
   await attempt(async () => {
-    S.vocab = await V.guardarMateria(materia, { correcciones });
+    S.vocab = await V.guardarGrupo(grupo, { correcciones });
     Router.refresh();
   }, { errorTitle: 'No se pudo guardar el vocabulario' });
 }
 
-async function nuevaMateria() {
+async function nuevoGrupo() {
   const body = document.createElement('div');
   body.className = 'op-field';
-  body.innerHTML = '<label class="op-field__label">Nombre</label><input class="op-input" spellcheck="false" placeholder="Farmacognosia">';
+  body.innerHTML = '<label class="op-field__label">Nombre</label><input class="op-input" spellcheck="false" placeholder="Reuniones de equipo">';
   const input = body.querySelector('input');
   const ok = await Modal.show({
-    title: 'Nueva materia', body, width: 400,
+    title: 'Nuevo grupo', body, width: 400,
     actions: [{ label: 'Cancelar', value: null }, { label: 'Crear', value: true, variant: 'primary' }],
   });
   const nombre = input.value.trim();
   if (!ok || !nombre) return;
-  if (S.vocab.materias[nombre]) { Toast.show({ title: 'Esa materia ya existe', text: nombre, icon: 'info' }); return; }
+  if (S.vocab.grupos[nombre]) { Toast.show({ title: 'Ese grupo ya existe', text: nombre, icon: 'info' }); return; }
   await attempt(async () => {
-    S.vocab = await V.guardarMateria(nombre, {});
+    S.vocab = await V.guardarGrupo(nombre, {});
     updateChrome();
     if (Router.name === 'vocabularios') Router.refresh();
-  }, { errorTitle: 'No se pudo crear la materia' });
+  }, { errorTitle: 'No se pudo crear el grupo' });
 }
 
-async function quitarMateria(m) {
-  const n = lista().filter((c) => c.materia === m).length;
+async function renombrarGrupo(m) {
+  const body = document.createElement('div');
+  body.className = 'op-field';
+  body.innerHTML = '<label class="op-field__label">Nombre</label><input class="op-input" spellcheck="false">';
+  const input = body.querySelector('input');
+  input.value = m;
+  const ok = await Modal.show({
+    title: 'Cambiar el nombre del grupo', sub: 'Su vocabulario y sus audios lo siguen.', body, width: 400,
+    actions: [{ label: 'Cancelar', value: null }, { label: 'Guardar', value: true, variant: 'primary' }],
+  });
+  const nombre = input.value.trim();
+  if (!ok || !nombre || nombre === m) return;
+  await attempt(async () => {
+    S.vocab = await V.renombrarGrupo(m, nombre);
+    updateChrome();
+    Router.refresh();
+  }, { errorTitle: 'No se pudo cambiar el nombre' });
+}
+
+async function quitarGrupo(m) {
+  const n = lista().filter((c) => c.grupo === m).length;
   const ok = await Modal.confirm({
-    title: `¿Quitar ${m}?`,
-    sub: `Se borran sus términos y sus correcciones.${n ? ` ${n === 1 ? 'Su clase queda' : `Sus ${n} clases quedan`} en la biblioteca, sin vocabulario.` : ''}`,
+    title: `¿Quitar el grupo «${m}»?`,
+    sub: `Se borran sus términos y sus correcciones.${n ? ` ${n === 1 ? 'Su audio queda' : `Sus ${n} audios quedan`} en la biblioteca, sin grupo.` : ''}`,
     confirmLabel: 'Quitar',
     danger: true,
   });
   if (!ok) return;
   await attempt(async () => {
-    S.vocab = await V.quitarMateria(m);
+    S.vocab = await V.quitarGrupo(m);
     updateChrome();
     Router.refresh();
   }, { errorTitle: 'No se pudo quitar' });
@@ -862,6 +882,7 @@ async function quitarMateria(m) {
 /* ══ Vista: Ajustes ══════════════════════════════════════════════════════════ */
 
 const MODELOS = ['large-v3-turbo', 'large-v3', 'medium', 'small'];
+const PARRAFOS = [{ seg: 30, nombre: 'Cortos, 30 s' }, { seg: 55, nombre: 'Medios, 55 s' }, { seg: 90, nombre: 'Largos, 90 s' }];
 
 function viewAjustes() {
   const st = S.settings;
@@ -896,15 +917,28 @@ function viewAjustes() {
         </div>
 
         <div class="op-section">
+          <div class="op-section__head"><span class="op-section__title">Lectura</span></div>
+          <div class="op-card"><div class="op-card__body">
+            <div class="op-field">
+              <label class="op-field__label">Párrafos</label>
+              <div class="op-segmented" id="set-parrafo" style="max-width:360px">
+                ${PARRAFOS.map((p) => `<button class="op-segmented__opt${(st.parrafo || 55) === p.seg ? ' is-active' : ''}" data-value="${p.seg}">${p.nombre}</button>`).join('')}
+              </div>
+              <span class="op-field__hint">Cada cuánto corta el texto, en la lectura y en lo que se exporta. Siempre corta en el final de una oración.</span>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="op-section">
           <div class="op-section__head"><span class="op-section__title">Datos</span></div>
           <div class="op-card"><div class="op-card__body">
             <div class="op-kv">
               <span class="op-kv__k">Carpeta</span>
               <span class="op-kv__v op-mono op-copyable" data-copy="${esc(S.info?.dataDir || '')}">${esc(S.info?.dataDir || '')}</span>
-              <span class="op-kv__k">Clases</span><span class="op-kv__v op-num">${S.clases.size}</span>
+              <span class="op-kv__k">Transcripciones</span><span class="op-kv__v op-num">${S.clases.size}</span>
             </div>
             <p class="op-meta" style="margin-top:14px;line-height:1.65">
-              Cada clase es un JSON con el texto de Whisper tal como salió. Los audios no se copian:
+              Cada transcripción es un JSON con el texto de Whisper tal como salió. Los audios no se copian:
               Verba guarda la ruta y los lee de donde están.
             </p>
           </div></div>
@@ -933,6 +967,7 @@ function viewAjustes() {
     })));
   });
   bindSwitcher(document.getElementById('set-idioma'), (value) => persist({ idioma: value }));
+  bindSwitcher(document.getElementById('set-parrafo'), (value) => persist({ parrafo: Number(value) }));
   const py = document.getElementById('set-python');
   py.addEventListener('blur', () => { const v = py.value.trim() || 'python'; if (v !== S.settings.python) persist({ python: v }); });
 }
@@ -987,8 +1022,8 @@ function wireShell() {
   /* Delegación global: las vistas se repintan enteras y el panel se releva,
      así que el cableado se hace una sola vez acá y sobrevive a todo. */
   document.addEventListener('click', (e) => {
-    const nav = e.target.closest('.op-navitem');
-    if (nav) { nav.dataset.materia ? Router.go('biblioteca', nav.dataset.materia) : Router.go(nav.dataset.view); return; }
+    const nav = e.target.closest('.op-navitem:not([data-action])');
+    if (nav) { nav.dataset.grupo ? Router.go('biblioteca', nav.dataset.grupo) : Router.go(nav.dataset.view); return; }
 
     const goto = e.target.closest('[data-goto]');
     if (goto) { Router.go(goto.dataset.goto, goto.dataset.param || null); return; }
@@ -1018,21 +1053,22 @@ function wireShell() {
       if (a === 'rehacer') rehacer();
       if (a === 'agregar-corr') agregarCorreccion();
       if (a === 'quitar-corr') {
-        const m = S.abierta?.clase.materia;
-        guardarCorrecciones((S.vocab.materias[m]?.correcciones || []).filter((_, i) => i !== Number(arg)));
+        const m = S.abierta?.clase.grupo;
+        guardarCorrecciones((S.vocab.grupos[m]?.correcciones || []).filter((_, i) => i !== Number(arg)));
       }
-      if (a === 'terminos-a-materia') {
-        const m = S.abierta?.clase.materia, campo = document.querySelector('#panel #pn-terminos');
+      if (a === 'terminos-a-grupo') {
+        const m = S.abierta?.clase.grupo, campo = document.querySelector('#panel #pn-terminos');
         if (m && campo) attempt(async () => {
-          S.vocab = await V.guardarMateria(m, { terminos: campo.value });
+          S.vocab = await V.guardarGrupo(m, { terminos: campo.value });
           Toast.show({ title: `Términos de ${m} guardados`, text: plural(contarTerminos(campo.value), 'término', 'términos'), icon: 'check' });
         }, { errorTitle: 'No se pudieron guardar los términos' });
       }
-      if (a === 'nueva-materia') nuevaMateria();
-      if (a === 'quitar-materia') quitarMateria(arg);
+      if (a === 'nuevo-grupo') nuevoGrupo();
+      if (a === 'quitar-grupo') quitarGrupo(arg);
+      if (a === 'renombrar-grupo') renombrarGrupo(arg);
       if (a === 'voc-quitar' || a === 'voc-agregar') {
-        const caja = act.closest('[data-materia]'), m = caja?.dataset.materia;
-        const actuales = S.vocab.materias[m]?.correcciones || [];
+        const caja = act.closest('[data-grupo]'), m = caja?.dataset.grupo;
+        const actuales = S.vocab.grupos[m]?.correcciones || [];
         if (a === 'voc-quitar') vocCambiar(m, actuales.filter((_, i) => i !== Number(arg)));
         else {
           const de = caja.querySelector('[data-de]'), ha = caja.querySelector('[data-a]');
@@ -1095,22 +1131,22 @@ function wireShell() {
 }
 
 /** Todo lo que vive fuera de la vista: el rail, la statusbar, el contexto. */
-let firmaMaterias = '';
+let firmaGrupos = '';
 function updateChrome() {
   contador(document.getElementById('n-cola'), pendientes().filter((c) => c.estado !== 'error').length);
   contador(document.getElementById('n-biblioteca'), listas().length);
 
-  // las materias del rail: se rehacen solo si cambió la lista o un número
-  const ms = materias().map((m) => [m, listas(m).length]);
+  // los grupos del rail: se rehacen solo si cambió la lista o un número
+  const ms = grupos().map((m) => [m, listas(m).length]);
   const firma = JSON.stringify(ms);
-  const caja = document.getElementById('rail-materias');
-  if (firma !== firmaMaterias) {
-    firmaMaterias = firma;
-    caja.innerHTML = ms.map(([m, n]) => `<button class="op-navitem" data-materia="${esc(m)}">
-      <span class="vb-materia__punto"></span><span class="op-truncate">${esc(m)}</span><span class="op-navitem__count">${n || ''}</span></button>`).join('');
+  const caja = document.getElementById('rail-grupos');
+  if (firma !== firmaGrupos) {
+    firmaGrupos = firma;
+    caja.innerHTML = ms.map(([m, n]) => `<button class="op-navitem" data-grupo="${esc(m)}">
+      <span class="vb-grupo__punto"></span><span class="op-truncate">${esc(m)}</span><span class="op-navitem__count">${n || ''}</span></button>`).join('');
   }
   const filtro = Router.name === 'biblioteca' ? Router.param : null;
-  caja.querySelectorAll('.op-navitem').forEach((b) => b.classList.toggle('is-active', b.dataset.materia === filtro));
+  caja.querySelectorAll('.op-navitem').forEach((b) => b.classList.toggle('is-active', b.dataset.grupo === filtro));
   if (filtro) document.getElementById('nav-biblioteca').classList.remove('is-active');
 
   // la statusbar

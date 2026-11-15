@@ -55,6 +55,16 @@ caso('párrafos: cortan cerca de los 55 s y en un punto', () => {
   }
 });
 
+caso('párrafos: el largo se puede pedir', () => {
+  const segs = [];
+  for (let i = 0; i < 18; i++) segs.push(seg(i * 10, i * 10 + 10, 'Una oración.'));
+  const cortos = T.parrafos(segs, [], { ventana: 30 }).parrafos;
+  const largos = T.parrafos(segs, [], { ventana: 90 }).parrafos;
+  assert.equal(cortos.length, 6);
+  assert.equal(largos.length, 2);
+  assert.equal(T.parrafos(segs, [], { ventana: 0 }).parrafos.length, T.parrafos(segs).parrafos.length);
+});
+
 caso('párrafos: confianza baja, inventos marcados y usos con su minuto', () => {
   const segs = [seg(0, 20, 'La reserfina bloquea el VMAT.', -0.1), seg(20, 60, 'Otra vez reserfina.', -0.2), seg(60, 62, 'Gracias.', -1.2),
     seg(62, 120, '¿Y el propranolol dónde entra?', -0.9)];
@@ -68,7 +78,7 @@ caso('párrafos: confianza baja, inventos marcados y usos con su minuto', () => 
 });
 
 const clase = {
-  nombre: 'Sistema adrenérgico', archivo: 'QM 08-10.mp3', materia: 'Medicinal', dur: 122, modelo: 'large-v3-turbo', tardo: 9,
+  nombre: 'Sistema adrenérgico', archivo: 'QM 08-10.mp3', grupo: 'Medicinal', dur: 122, modelo: 'large-v3-turbo', tardo: 9,
   segs: [seg(0, 20, 'La reserfina bloquea el VMAT.'), seg(20, 60, 'Otra vez reserfina.'), seg(60, 62, 'Gracias.'), seg(62, 120, '¿Y el propranolol?', -0.9)],
 };
 const corr = [{ de: 'reserfina', a: 'reserpina' }];
@@ -77,6 +87,7 @@ caso('Markdown: cabecera, tiempos, tabla de correcciones y lo que hay que cheque
   const md = T.aMarkdown(clase, corr);
   assert.match(md, /^# Sistema adrenérgico\n/);
   assert.match(md, /\*\*Duración:\*\* 2:02/);
+  assert.match(md, /\*\*Grupo:\*\* Medicinal/);
   assert.match(md, /\*\*\[0:00\]\*\* La reserpina bloquea el VMAT\. Otra vez reserpina\./);
   assert.match(md, /\| reserfina \| reserpina \| 0:00, 0:20 \|/);
   assert.match(md, /\[1:00\] Posible invento en un silencio/);

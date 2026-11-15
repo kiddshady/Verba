@@ -2,8 +2,9 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Verba — la cola y el motor
-   Las clases (un audio y su transcripción) viven en la colección `clases`, un
-   JSON por audio. La cola corre acá, en el proceso principal, para que siga
+   Cada transcripción (un audio y su texto) vive en la colección `clases`, un
+   JSON por audio: «clase» es su nombre interno, de cuando la app era para
+   apuntes. Puede llevar un grupo, que le da su vocabulario. La cola corre acá, en el proceso principal, para que siga
    aunque la interfaz cambie de vista o se recargue: de a un audio, en el orden
    en que se agregaron.
 
@@ -21,7 +22,6 @@ const store = require('./store.cjs');
 const texto = require('./texto.cjs');
 
 const AUDIO = ['.mp3', '.m4a', '.ogg', '.opus', '.oga', '.wav', '.flac', '.aac', '.wma', '.mp4', '.mkv', '.webm', '.mov'];
-const MATERIAS = ['Medicinal', 'Biológica', 'Farmaco', 'Tecnia', 'Micro', 'Nosia', 'Biotecno'];
 const OCIO_MS = 90000;
 const FFMPEG = 'C:\\tools\\ffmpeg\\bin';
 
@@ -30,7 +30,7 @@ const vocabDoc = store.doc('vocabularios', null);
 
 /** id → clase completa. El disco es la verdad; esto evita releerlo en cada vista. */
 const clases = new Map();
-let vocab = { materias: {} };
+let vocab = { grupos: {} };
 let emitir = () => {};
 
 /* ── El proceso ──────────────────────────────────────────────────────────── */
@@ -238,12 +238,12 @@ async function expandir(rutas = []) {
   return [...new Set(out)].map((ruta) => ({ ruta, archivo: path.basename(ruta) }));
 }
 
-async function agregar(rutas = [], { materia = '', terminos = '' } = {}) {
+async function agregar(rutas = [], { grupo = '', terminos = '' } = {}) {
   const nuevos = [];
   for (const { ruta, archivo } of await expandir(rutas)) {
     const c = {
       id: proximoId(), nombre: path.basename(archivo, path.extname(archivo)), archivo, audio: ruta,
-      materia: String(materia || ''), terminos: String(terminos || '').trim(),
+      grupo: String(grupo || ''), terminos: String(terminos || '').trim(),
       estado: 'cola', creado: Date.now() + nuevos.length, dur: await duracion(ruta),
     };
     await guardar(c);
@@ -274,26 +274,27 @@ async function reintentar(id, terminos) {
   return resumen(c);
 }
 
-async function editar(id, { nombre, materia } = {}) {
+async function editar(id, { nombre, grupo } = {}) {
   const c = clases.get(id);
   if (!c) return null;
   if (typeof nombre === 'string' && nombre.trim()) c.nombre = nombre.trim();
-  if (typeof materia === 'string') c.materia = materia;
+  if (typeof grupo === 'string') c.grupo = grupo;
   await guardar(c);
   return resumen(c);
 }
 
-const correccionesDe = (materia) => vocab.materias[materia]?.correcciones || [];
+const correccionesDe = (grupo) => vocab.grupos[grupo]?.correcciones || [];
 
-function abrir(id) {
+async function abrir(id) {
   const c = clases.get(id);
   if (!c) return null;
+  const ventana = (await store.loadSettings()).parrafo;
   return {
     clase: resumen(c),
     picos: c.picos || [],
     url: pathToFileURL(c.audio).href,
     hayAudio: fs.existsSync(c.audio),
-    ...texto.parrafos(c.segs || [], correccionesDe(c.materia)),
+    ...texto.parrafos(c.segs || [], correccionesDe(c.grupo), { ventana }),
   };
 }
 
@@ -304,21 +305,21 @@ async function exportar(id, formato, pisar = false) {
   if (c.estado !== 'lista') throw new Error('La transcripción todavía no está lista.');
   const ruta = path.join(path.dirname(c.audio), path.basename(c.audio, path.extname(c.audio)) + f.ext);
   if (!pisar && fs.existsSync(ruta)) return { existe: true, ruta };
-  await fs.promises.writeFile(ruta, f.escribir(c, correccionesDe(c.materia)), 'utf8');
+  await fs.promises.writeFile(ruta, f.escribir(c, correccionesDe(c.grupo), { ventana: (await store.loadSettings()).parrafo }), 'utf8');
   return { ruta };
 }
 
-function textoPlano(id) {
+async function textoPlano(id) {
   const c = clases.get(id);
-  return c ? texto.aTexto(c, correccionesDe(c.materia)) : '';
+  return c ? texto.aTexto(c, correccionesDe(c.grupo), { ventana: (await store.loadSettings()).parrafo }) : '';
 }
 
 /* ── Vocabularios ────────────────────────────────────────────────────────── */
 
 function limpiarVocab(v) {
-  const out = { materias: {} };
-  for (const [m, d] of Object.entries(v?.materias || {})) {
-    out.materias[m] = {
+  const out = { grupos: {} };
+  for (const [m, d] of Object.entries(v?.grupos || {})) {
+    out.grupos[m] = {
       terminos: String(d?.terminos || ''),
       correcciones: (Array.isArray(d?.correcciones) ? d.correcciones : [])
         .map((c) => ({ de: String(c?.de || '').trim(), a: String(c?.a || '').trim() }))
@@ -328,19 +329,50 @@ function limpiarVocab(v) {
   return out;
 }
 
-async function guardarMateria(nombre, datos) {
+async function guardarGrupo(nombre, datos) {
   const m = String(nombre || '').trim();
-  if (!m) throw new Error('La materia necesita un nombre.');
-  vocab.materias[m] = { ...(vocab.materias[m] || { terminos: '', correcciones: [] }), ...datos };
+  if (!m) throw new Error('El grupo necesita un nombre.');
+  vocab.grupos[m] = { ...(vocab.grupos[m] || { terminos: '', correcciones: [] }), ...datos };
   vocab = limpiarVocab(vocab);
   await vocabDoc.write(vocab);
   return vocab;
 }
 
-async function quitarMateria(nombre) {
-  delete vocab.materias[nombre];
+/** Quita el grupo. Sus audios quedan en la biblioteca, sin grupo. */
+async function quitarGrupo(nombre) {
+  delete vocab.grupos[nombre];
   await vocabDoc.write(vocab);
+  for (const c of clases.values()) if (c.grupo === nombre) { c.grupo = ''; await guardar(c); }
   return vocab;
+}
+
+/** Cambia el nombre de un grupo: su vocabulario y sus audios lo siguen. */
+async function renombrarGrupo(viejo, nuevo) {
+  const n = String(nuevo || '').trim();
+  if (!n) throw new Error('El grupo necesita un nombre.');
+  if (n === viejo) return vocab;
+  if (vocab.grupos[n]) throw new Error(`Ya hay un grupo que se llama «${n}».`);
+  // se rearma el objeto para que el grupo conserve su lugar en la lista
+  vocab = { grupos: Object.fromEntries(Object.entries(vocab.grupos).map(([k, d]) => [k === viejo ? n : k, d])) };
+  if (!vocab.grupos[n]) vocab.grupos[n] = { terminos: '', correcciones: [] };
+  await vocabDoc.write(vocab);
+  for (const c of clases.values()) if (c.grupo === viejo) { c.grupo = n; await guardar(c); }
+  return vocab;
+}
+
+/* Hasta la 0.1 los grupos eran «materias» y la app nacía con siete de fábrica.
+   De ese archivo se quedan las que tienen algo adentro o algún audio: las de
+   fábrica que nadie tocó no eran de nadie. */
+function migrarVocab(v) {
+  if (!v) return { grupos: {} };
+  if (v.grupos) return v;
+  const usados = new Set([...clases.values()].map((c) => c.grupo).filter(Boolean));
+  const grupos = {};
+  for (const [m, d] of Object.entries(v['materias'] || {})) {
+    const lleno = String(d?.terminos || '').trim() || (Array.isArray(d?.correcciones) && d.correcciones.length);
+    if (lleno || usados.has(m)) grupos[m] = d;
+  }
+  return { grupos };
 }
 
 /* ── Arranque ────────────────────────────────────────────────────────────── */
@@ -359,18 +391,22 @@ async function init(emisor) {
 
 async function cargar() {
   for (const c of await col.list()) {
+    let cambio = false;
     // lo que estaba corriendo cuando se cerró la app vuelve a la cola
-    if (c.estado === 'corriendo') { c.estado = 'cola'; await col.save(c); }
+    if (c.estado === 'corriendo') { c.estado = 'cola'; cambio = true; }
+    // hasta la 0.1 el grupo se llamaba «materia»
+    if ('materia' in c) { c.grupo = c.grupo || c['materia'] || ''; delete c['materia']; cambio = true; }
+    if (cambio) await col.save(c);
     clases.set(c.id, c);
   }
   const guardado = await vocabDoc.read();
-  vocab = limpiarVocab(guardado || { materias: Object.fromEntries(MATERIAS.map((m) => [m, {}])) });
-  if (!guardado) await vocabDoc.write(vocab);
+  vocab = limpiarVocab(migrarVocab(guardado));
+  if (!guardado || !guardado.grupos) await vocabDoc.write(vocab);
 }
 
 module.exports = {
   AUDIO, init, listo, apagar, estado,
   lista: () => [...clases.values()].map(resumen),
   expandir, agregar, quitar, reintentar, editar, abrir, exportar, textoPlano,
-  vocabularios: () => vocab, guardarMateria, quitarMateria,
+  vocabularios: () => vocab, guardarGrupo, quitarGrupo, renombrarGrupo,
 };

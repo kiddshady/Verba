@@ -16,10 +16,10 @@
 /* ── La marca ──────────────────────────────────────────────────────────────── */
 .op-brand .vb-marca { width: 20px; height: 20px; flex: none; display: block; }
 
-/* ── El rail: materias ─────────────────────────────────────────────────────── */
+/* ── El rail: grupos ─────────────────────────────────────────────────────── */
 .op-navitem[hidden] { display: none; }   /* Piezas, fuera de --dev */
-.vb-materia__punto { width: 6px; height: 6px; margin: 0 5px; border-radius: 2px; background: var(--op-text-4); flex: none; transition: var(--tr-color); }
-.op-navitem.is-active .vb-materia__punto { background: var(--op-accent); }
+.vb-grupo__punto { width: 6px; height: 6px; margin: 0 5px; border-radius: 2px; background: var(--op-text-4); flex: none; transition: var(--tr-color); }
+.op-navitem.is-active .vb-grupo__punto { background: var(--op-accent); }
 
 /* ── Donde se sueltan los audios ───────────────────────────────────────────── */
 .vb-drop {

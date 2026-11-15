@@ -14,8 +14,8 @@
 const LP_ALTA = -0.3;     // por encima, Whisper estaba seguro
 const LP_BAJA = -0.5;     // el promedio de un párrafo por debajo: confianza baja
 const CR_BUCLE = 2.4;     // compresión por encima: se quedó repitiendo
-const VENTANA = 55;       // segundos por párrafo
-const TOPE = 85;          // y no más que esto aunque no haya un punto
+const VENTANA = 55;       // segundos por párrafo, si no se pide otra cosa
+const TOPE = 1.55;        // y no más que esto, por la ventana, aunque no haya un punto
 
 /* Lo que Whisper escribe cuando no hay voz: un segmento entero que es solo
    esto. Dentro de una oración no cuenta. */
@@ -99,10 +99,11 @@ function corregir(texto, corrector) {
 const plano = (partes) => partes.map((p) => p.t).join('');
 
 /* ── Párrafos ────────────────────────────────────────────────────────────────
-   Tramos de unos 55 segundos que cortan en el fin de una oración. Cada uno
+   Tramos de unos 55 segundos (o lo que se pida) que cortan en el fin de una oración. Cada uno
    lleva su minuto, si la confianza fue baja y el texto ya en partes. */
 
-function parrafos(segs = [], correcciones = []) {
+function parrafos(segs = [], correcciones = [], { ventana } = {}) {
+  const minimo = Number(ventana) > 0 ? Number(ventana) : VENTANA;
   const corrector = armarCorrector(correcciones);
   const usos = new Map();   // índice de corrección → [segundos]
   const out = [];
@@ -132,7 +133,7 @@ function parrafos(segs = [], correcciones = []) {
     }
     p.e = g.e;
     const largo = g.e - p.t;
-    if ((largo >= VENTANA && /[.?!…]["»)]?$/.test(texto)) || largo >= TOPE) cerrar();
+    if ((largo >= minimo && /[.?!…]["»)]?$/.test(texto)) || largo >= minimo * TOPE) cerrar();
   }
   cerrar();
   return {
@@ -147,12 +148,12 @@ const textoDe = (p) => plano(p.partes.filter((x) => !x.inv)).replace(/\s+/g, ' '
 
 /* ── Salidas ─────────────────────────────────────────────────────────────── */
 
-function aMarkdown(clase, correcciones = []) {
-  const { parrafos: ps, usos } = parrafos(clase.segs, correcciones);
+function aMarkdown(clase, correcciones = [], opciones = {}) {
+  const { parrafos: ps, usos } = parrafos(clase.segs, correcciones, opciones);
   const q = calidad(clase.segs);
   const l = [`# ${clase.nombre}`, ''];
   l.push(`- **Audio:** ${clase.archivo}`);
-  if (clase.materia) l.push(`- **Materia:** ${clase.materia}`);
+  if (clase.grupo) l.push(`- **Grupo:** ${clase.grupo}`);
   l.push(`- **Duración:** ${reloj(clase.dur || 0)}`);
   l.push(`- **Confianza alta:** ${q.alta} % del tiempo (logprob > −0,3)`);
   l.push(`- **Bucles:** ${q.bucles}`);
@@ -179,8 +180,8 @@ function aMarkdown(clase, correcciones = []) {
   return l.join('\n');
 }
 
-function aTexto(clase, correcciones = [], { tiempos = false } = {}) {
-  const { parrafos: ps } = parrafos(clase.segs, correcciones);
+function aTexto(clase, correcciones = [], { tiempos = false, ventana } = {}) {
+  const { parrafos: ps } = parrafos(clase.segs, correcciones, { ventana });
   return ps.map((p) => ({ p, t: textoDe(p) })).filter((x) => x.t)
     .map(({ p, t }) => (tiempos ? `[${reloj(p.t)}] ${t}` : t)).join('\n\n') + '\n';
 }
@@ -198,8 +199,8 @@ function aSrt(clase, correcciones = []) {
 
 const FORMATOS = {
   md: { ext: '.md', nombre: 'Markdown con tiempos', escribir: aMarkdown },
-  txt: { ext: '.txt', nombre: 'Texto corrido', escribir: (c, k) => aTexto(c, k) },
-  tiempos: { ext: ' (con tiempos).txt', nombre: 'Texto con tiempos', escribir: (c, k) => aTexto(c, k, { tiempos: true }) },
+  txt: { ext: '.txt', nombre: 'Texto corrido', escribir: (c, k, o) => aTexto(c, k, o) },
+  tiempos: { ext: ' (con tiempos).txt', nombre: 'Texto con tiempos', escribir: (c, k, o) => aTexto(c, k, { ...o, tiempos: true }) },
   srt: { ext: '.srt', nombre: 'Subtítulos', escribir: aSrt },
 };
 
