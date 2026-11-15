@@ -17,6 +17,9 @@ Es una app de escritorio para Windows, hecha con Electron sobre la plantilla Opa
   elige en Ajustes), cada uno con su tiempo. Un clic en un párrafo lleva el audio ahí, y el texto sigue al audio
   mientras suena. Los tramos de confianza baja van avisados, y lo que Whisper
   inventa en los silencios («Gracias.») va tachado y no sale al exportar.
+- **Buscar en el texto.** Un campo arriba de la lectura, o Ctrl+F. No distingue
+  acentos ni mayúsculas, cuenta lo que encontró y se recorre con Enter y
+  Shift+Enter.
 - **Grupos.** Un grupo junta los audios que comparten vocabulario: un tema, un
   podcast, un cliente, una materia. Los creás vos, con el nombre que quieras, y
   se pueden renombrar o quitar. Un audio también puede ir sin grupo.
@@ -28,6 +31,9 @@ Es una app de escritorio para Windows, hecha con Electron sobre la plantilla Opa
   pasa a Whisper antes de empezar, para que los escriba bien.
 - **Exportar.** Markdown con tiempos, texto corrido, texto con tiempos y
   subtítulos `.srt`, al lado del audio.
+- **Bandeja.** Cerrar la ventana no corta la cola: Verba queda en la bandeja
+  del sistema, sigue transcribiendo y avisa cuando un audio termina. Para salir
+  del todo, clic derecho en el ícono, «Salir». Se apaga en Ajustes → Ventana.
 
 Lee `mp3`, `m4a`, `ogg`, `opus`, `wav`, `flac`, `aac`, `wma`, `mp4`, `mkv`, `webm`
 y `mov`.
@@ -38,7 +44,9 @@ Verba no trae Whisper adentro: usa el Python que ya tengas.
 
 - **Windows 10 u 11.**
 - **Python** con `openai-whisper` y `torch`. Con una GPU NVIDIA, el `torch` con
-  CUDA; sin GPU anda en CPU, bastante más lento.
+  CUDA; sin GPU anda en CPU, bastante más lento (ahí conviene un modelo más
+  chico, como `small`). Con GPU también se puede pedir que corra solo en CPU,
+  en **Ajustes → Motor → Dispositivo**.
 
   ```
   pip install openai-whisper
@@ -57,7 +65,8 @@ Bajá `Verba-Setup-<versión>.exe` de la
 no está firmado, así que Windows puede mostrar el aviso de SmartScreen.
 
 Desde la 0.2.0 la app se actualiza sola: busca una versión nueva al abrir y cada
-cuatro horas, la baja en segundo plano y entra cuando cerrás Verba. El estado
+cuatro horas, la baja en segundo plano y entra cuando salís de Verba (o al
+tocar «Reiniciar» en el aviso). El estado
 está en **Ajustes → Acerca de**.
 
 Para armar el instalador vos:

@@ -1,7 +1,7 @@
 {
   "name": "verba",
   "productName": "Verba",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Transcripción de audios en local con Whisper: cola, texto con tiempos, grupos con su vocabulario y exportación.",
   "main": "main.cjs",
   "author": "Kidd Shady · Umbrovex Systems <umbrovex@proton.me>",
