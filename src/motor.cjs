@@ -128,6 +128,7 @@ async function alEvento(ev) {
       break;
     case 'cargando':
       M.fase = 'cargando'; M.modelo = ev.modelo;
+      if (ev.dispositivo) M.dispositivo = ev.dispositivo;
       avisarMotor();
       break;
     case 'audio':
@@ -148,7 +149,7 @@ async function alEvento(ev) {
         modelo: ev.modelo, dispositivo: ev.dispositivo, terminado: Date.now(),
         calidad: texto.calidad(ev.segs),
       });
-      M.corriendo = null; M.p = 0; M.modelo = ev.modelo;
+      M.corriendo = null; M.p = 0; M.modelo = ev.modelo; M.dispositivo = ev.dispositivo || M.dispositivo;
       await guardar(c);
       bombear();
       break;
@@ -185,6 +186,7 @@ async function bombear() {
     proc.stdin.write(`${JSON.stringify({
       op: 'transcribir', id: sig.id, audio: sig.audio, prompt: sig.terminos || '',
       modelo: st.modelo || 'large-v3-turbo', idioma: st.idioma === 'auto' ? null : (st.idioma || 'es'),
+      dispositivo: st.dispositivo === 'cpu' ? 'cpu' : 'auto',
     })}\n`);
   } catch (err) {
     M.corriendo = null;

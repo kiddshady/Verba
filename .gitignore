@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+__pycache__/
 
 # Config local de herramientas: de esta máquina, no del repo.
 .claude/

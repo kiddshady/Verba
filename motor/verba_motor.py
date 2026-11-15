@@ -2,12 +2,13 @@
 
 Habla JSON por líneas: lee pedidos por stdin y escribe eventos por stdout.
 
-  pedido  {"op": "transcribir", "id", "audio", "prompt", "modelo", "idioma"}
+  pedido  {"op": "transcribir", "id", "audio", "prompt", "modelo", "idioma", "dispositivo"}
+          ("dispositivo": "cpu" deja la placa libre; cualquier otra cosa la usa si hay)
           {"op": "salir"}
   evento  {"ev": "arranco"}                        el proceso está vivo
           {"ev": "listo", "dispositivo", "gpu"}    torch y whisper importados
           {"ev": "audio", "id", "dur", "picos"}    el audio se leyó (picos 0..255)
-          {"ev": "cargando", "id", "modelo"}       el modelo entra a memoria
+          {"ev": "cargando", "id", "modelo", "dispositivo"}   el modelo entra a memoria
           {"ev": "progreso", "id", "p"}            0..1
           {"ev": "hecho", "id", "dur", "tardo", "modelo", "dispositivo", "segs"}
           {"ev": "error", "id", "msg"}
@@ -42,7 +43,6 @@ def main():
     wt = sys.modules["whisper.transcribe"]
 
     cuda = torch.cuda.is_available()
-    dispositivo = "cuda" if cuda else "cpu"
     actual = {"id": None}
 
     class Barra:
@@ -70,7 +70,7 @@ def main():
         tqdm = Barra
 
     wt.tqdm = _Tqdm
-    decir({"ev": "listo", "dispositivo": dispositivo,
+    decir({"ev": "listo", "dispositivo": "cuda" if cuda else "cpu",
            "gpu": torch.cuda.get_device_name(0) if cuda else None})
 
     modelos = {}
@@ -91,14 +91,20 @@ def main():
         decir({"ev": "audio", "id": op["id"], "dur": dur, "picos": picos})
 
         nombre = op.get("modelo") or "large-v3-turbo"
-        if nombre not in modelos:
-            decir({"ev": "cargando", "id": op["id"], "modelo": nombre})
+        # En CPU por pedido (Ajustes) o porque no hay placa. La media precisión
+        # es solo de la placa: en CPU whisper la rechaza con un aviso.
+        dispositivo = "cuda" if cuda and op.get("dispositivo") != "cpu" else "cpu"
+        clave = (nombre, dispositivo)
+        if clave not in modelos:
+            decir({"ev": "cargando", "id": op["id"], "modelo": nombre, "dispositivo": dispositivo})
             modelos.clear()   # uno solo en memoria: la VRAM es de todos
-            modelos[nombre] = whisper.load_model(nombre, device=dispositivo)
-        r = modelos[nombre].transcribe(
+            if cuda:
+                torch.cuda.empty_cache()
+            modelos[clave] = whisper.load_model(nombre, device=dispositivo)
+        r = modelos[clave].transcribe(
             audio,
             language=op.get("idioma") or None,
-            fp16=cuda,
+            fp16=dispositivo == "cuda",
             condition_on_previous_text=False,
             initial_prompt=op.get("prompt") or None,
             verbose=False,
