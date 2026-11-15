@@ -1,8 +1,8 @@
 {
   "name": "verba",
   "productName": "Verba",
-  "version": "0.1.0",
-  "description": "Transcripción de audios en local con Whisper: cola, texto con tiempos, correcciones por materia y exportación.",
+  "version": "0.2.0",
+  "description": "Transcripción de audios en local con Whisper: cola, texto con tiempos, grupos con su vocabulario y exportación.",
   "main": "main.cjs",
   "author": "Kidd Shady · Umbrovex Systems <umbrovex@proton.me>",
   "license": "MIT",
@@ -16,10 +16,14 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "icon": "electron tools/icono.cjs",
-    "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs && node test/texto.test.mjs",
+    "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs && node test/texto.test.mjs && node test/actualizador.test.mjs",
     "smoke": "electron test/verba.smoke.cjs",
     "smoke:opal": "electron test/renderer.test.cjs",
-    "build": "electron-builder --win --publish never"
+    "build": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "44.10.1",
@@ -31,6 +35,12 @@
     "copyright": "Copyright © 2026 Kidd Shady · Umbrovex Systems",
     "directories": {
       "output": "dist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "kiddshady",
+      "repo": "Verba",
+      "releaseType": "release"
     },
     "files": [
       "main.cjs",

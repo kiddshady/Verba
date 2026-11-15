@@ -11,7 +11,13 @@
 /* Un <button> nuevo declara su borde: sin esto hereda el biselado gris de
    Chromium (se veía como un marco blanco en la zona de soltar, los minutos,
    el botón de reproducir y la velocidad). */
-.vb-drop, .vb-min, .vb-play, .vb-vel { border: 0; }
+.vb-drop, .vb-min, .vb-play, .vb-vel, .vb-update { border: 0; }
+
+/* ── La versión nueva, en la statusbar ─────────────────────────────────────── */
+.vb-update { background: none; color: var(--op-accent); cursor: default; animation: op-fade-in var(--op-t-3) var(--op-ease) both; }
+.vb-update[hidden] { display: none; }
+.vb-update:hover { color: var(--op-text); }
+.vb-update:disabled { color: var(--op-text-3); }
 
 /* ── La marca ──────────────────────────────────────────────────────────────── */
 .op-brand .vb-marca { width: 20px; height: 20px; flex: none; display: block; }

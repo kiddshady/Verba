@@ -17,6 +17,7 @@ const path = require('path');
 const fs = require('fs');
 const store = require('./store.cjs');
 const motor = require('./motor.cjs');
+const actualizador = require('./actualizador.cjs');
 const { FORMATOS } = require('./texto.cjs');
 
 /* Las colecciones que el renderer puede tocar. Es una lista blanca a
@@ -94,6 +95,13 @@ function register() {
      gigante no tiene por qué cruzar entero. Desde Electron 44 el
      portapapeles del proceso principal es asíncrono, como el de la web. */
   handle('clip:read', async () => (await clipboard.readText()).slice(0, 100000));
+
+  /* ── Actualizaciones (src/actualizador.cjs). El estado cambia solo y llega
+     por 'update:cambio'. ── */
+  handle('update:estado', () => actualizador.leer());
+  handle('update:buscar', (opts) => actualizador.buscar(opts));
+  handle('update:descargar', () => actualizador.descargar());
+  handle('update:instalar', () => actualizador.instalar());
 
   handle('settings:get', () => store.loadSettings());
   handle('settings:save', (patch) => store.saveSettings(patch));

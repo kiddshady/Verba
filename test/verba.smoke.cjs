@@ -50,7 +50,7 @@ function sembrar() {
   const w = (f, o) => fs.writeFileSync(path.join(process.env.VERBA_DATA, f), JSON.stringify(o, null, 2));
   // un `vidrio` guardado de cuando existía el acrílico: tiene que ignorarse
   w('settings.json', { schema: 1, vidrio: 'acrilico' });
-  w('vocabularios.json', { materias: { Medicinal: { terminos: 'reserpina, VMAT, MAO', correcciones: [{ de: 'reserfina', a: 'reserpina' }] }, Farmaco: { terminos: '', correcciones: [] } } });
+  w('vocabularios.json', { materias: { Medicinal: { terminos: 'reserpina, VMAT, MAO', correcciones: [{ de: 'reserfina', a: 'reserpina' }] }, Farmaco: { terminos: '', correcciones: [] }, Nosia: { terminos: '', correcciones: [] } } });
   w('clases/c-0001.json', {
     id: 'c-0001', nombre: 'Sistema adrenérgico', archivo: 'clase de prueba.wav', audio: AUDIO, materia: 'Medicinal',
     terminos: 'reserpina, VMAT', estado: 'lista', creado: 1, terminado: Date.now() - 86400000, dur: 180, tardo: 9.5, modelo: 'large-v3-turbo',
@@ -105,17 +105,17 @@ app.whenReady().then(async () => {
 
   console.log('\n3. La biblioteca');
   await tocar('#nav-biblioteca');
-  ok('lista la clase guardada', await hasta(`document.querySelectorAll('#view #bib-filas .vb-fila').length === 1`));
+  ok('lista la transcripción guardada', await hasta(`document.querySelectorAll('#view #bib-filas .vb-fila').length === 1`));
   ok('con su confianza', await js(`return document.querySelector('#view .vb-calmini b').textContent.trim() === '67 %'`));
-  const railMaterias = await js(`return [...document.querySelectorAll('#rail-materias .op-navitem')].map((b) => b.textContent.replace(/\\s+/g, ' ').trim()).join('|')`);
-  ok('las materias del rail llevan su cuenta', railMaterias.replace(/ /g, '') === 'Medicinal1|Farmaco', railMaterias);
+  const railGrupos = await js(`return [...document.querySelectorAll('#rail-grupos .op-navitem')].map((b) => b.textContent.replace(/\\s+/g, ' ').trim()).join('|')`);
+  ok('los grupos del rail llevan su cuenta', railGrupos.replace(/ /g, '') === 'Medicinal1|Farmaco', railGrupos);
   await foto('2-biblioteca');
-  await tocar('#rail-materias [data-materia="Farmaco"]');
-  ok('filtrar por una materia sin clases lo dice', await hasta(`document.querySelector('#view #bib-vacia')?.textContent.includes('No hay clases de Farmaco')`));
+  await tocar('#rail-grupos [data-grupo="Farmaco"]');
+  ok('filtrar por un grupo sin transcripciones lo dice', await hasta(`document.querySelector('#view #bib-vacia')?.textContent.includes('No hay transcripciones en Farmaco')`));
   await tocar('#nav-biblioteca');
   await hasta(`document.querySelectorAll('#view #bib-filas .vb-fila').length === 1`);
 
-  console.log('\n4. Leer una clase');
+  console.log('\n4. Leer una transcripción');
   await tocar('#view #bib-filas .vb-fila');
   ok('abre la lectura', await hasta(`document.querySelectorAll('#view #texto .vb-par').length > 0`));
   const horas = await js(`return [...document.querySelectorAll('#view .vb-par__hora')].map((h) => h.textContent).join(',')`);
@@ -142,7 +142,7 @@ app.whenReady().then(async () => {
   await js(`document.querySelector('#panel #pn-de').value = 'profe'; document.querySelector('#panel #pn-a').value = 'profesor';`);
   await tocar('#panel [data-action="agregar-corr"]');
   ok('aparece aplicada en el texto', await hasta(`[...document.querySelectorAll('#view .vb-fx')].some((x) => x.textContent === 'profesor')`));
-  ok('y queda en el vocabulario de la materia', JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'vocabularios.json'), 'utf8')).materias.Medicinal.correcciones.some((c) => c.de === 'profe' && c.a === 'profesor'));
+  ok('y queda en el vocabulario del grupo', JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'vocabularios.json'), 'utf8')).grupos.Medicinal.correcciones.some((c) => c.de === 'profe' && c.a === 'profesor'));
 
   console.log('\n7. Exportar');
   const r = await js(`return await window.opal.verba.exportar('c-0001', 'md', false)`);
@@ -153,18 +153,33 @@ app.whenReady().then(async () => {
 
   console.log('\n8. Vocabularios y ajustes');
   await tocar('.op-navitem[data-view="vocabularios"]');
-  ok('una tarjeta por materia', await hasta(`document.querySelectorAll('#view .vb-voc').length === 2`));
-  ok('al salir de una clase, el panel y el reproductor se guardan', await js(`const a = document.querySelector('.op-app').classList; return !a.contains('con-panel') && !a.contains('con-composer')`));
+  ok('una tarjeta por grupo', await hasta(`document.querySelectorAll('#view .vb-voc').length === 2`));
+  /* Los datos sembrados son de la 0.1: «materias» en el vocabulario y «materia»
+     en cada audio. Tienen que haber pasado a grupos, sin las de fábrica vacías. */
+  const vocabDisco = JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'vocabularios.json'), 'utf8'));
+  ok('las materias de la 0.1 pasaron a grupos', !!vocabDisco.grupos && !('materias' in vocabDisco) && Object.keys(vocabDisco.grupos).join(',') === 'Medicinal,Farmaco', JSON.stringify(Object.keys(vocabDisco.grupos || {})));
+  const claseDisco = JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'clases', 'c-0001.json'), 'utf8'));
+  ok('y cada audio lleva su grupo', claseDisco.grupo === 'Medicinal' && !('materia' in claseDisco));
+  await js(`await window.opal.verba.renombrarGrupo('Farmaco', 'Clientes')`);
+  ok('cambiarle el nombre a un grupo se lleva sus audios', JSON.parse(fs.readFileSync(path.join(process.env.VERBA_DATA, 'clases', 'c-0002.json'), 'utf8')).grupo === 'Clientes');
+  ok('y el rail lo muestra', await hasta(`[...document.querySelectorAll('#rail-grupos .op-navitem')].some((b) => b.dataset.grupo === 'Clientes')`));
+  ok('el rail ofrece crear un grupo', await js(`return !!document.querySelector('.op-rail [data-action="nuevo-grupo"]')`));
+  await js(`await window.opal.settings.save({ parrafo: 30 })`);
+  ok('párrafos cortos: el mismo audio da más párrafos', (await js(`return (await window.opal.verba.abrir('c-0001')).parrafos.length`)) === 4);
+  await js(`await window.opal.settings.save({ parrafo: 55 })`);
+  ok('al salir de la lectura, el panel y el reproductor se guardan', await js(`const a = document.querySelector('.op-app').classList; return !a.contains('con-panel') && !a.contains('con-composer')`));
   await foto('4-vocabularios');
   await tocar('.op-navitem[data-view="ajustes"]');
   ok('no hay opción de acrílico y la ventana es la oscura', await js(`return !document.querySelector('#view #set-vidrio') && !document.documentElement.classList.contains('vidrio-acrilico')`));
+  ok('ajustes dice cómo están las actualizaciones', await hasta(`document.querySelector('#view #upd-boton')?.textContent === 'Buscar actualizaciones' && document.querySelector('#view #upd-texto')?.textContent.length > 10`));
+  ok('sin versión nueva, la statusbar no muestra nada', await js(`return getComputedStyle(document.getElementById('stat-update')).display === 'none'`));
   ok('ajustes muestra el modelo', await hasta(`document.querySelector('#view #set-modelo')?.textContent.trim() === 'large-v3-turbo'`));
   await foto('5-ajustes');
 
   if (REAL) {
     console.log('\n9. Whisper de verdad');
     await tocar('.op-navitem[data-view="cola"]');
-    await js(`await window.opal.verba.agregar([${JSON.stringify(REAL)}], { materia: 'Medicinal', terminos: 'reserpina, isoprenalina, salbutamol' })`);
+    await js(`await window.opal.verba.agregar([${JSON.stringify(REAL)}], { grupo: 'Medicinal', terminos: 'reserpina, isoprenalina, salbutamol' })`);
     ok('la fila muestra el avance', await hasta(`document.querySelector('#view [data-fase]')?.textContent.length > 0`, 20000));
     await foto('6-transcribiendo');
     ok('termina y pasa a la biblioteca', await hasta(`document.getElementById('n-biblioteca').textContent.trim() === '2'`, 240000));

@@ -80,6 +80,19 @@ contextBridge.exposeInMainWorld('opal', {
     },
   },
 
+  /** Las actualizaciones (src/actualizador.cjs): buscar, bajar e instalar. */
+  update: {
+    estado: () => call('update:estado'),
+    buscar: (opts) => call('update:buscar', opts),
+    descargar: () => call('update:descargar'),
+    instalar: () => call('update:instalar'),
+    onCambio: (cb) => {
+      const handler = (_e, estado) => cb(estado);
+      ipcRenderer.on('update:cambio', handler);
+      return () => ipcRenderer.off('update:cambio', handler);
+    },
+  },
+
   /** Documento suelto: un borrador, un caché, el último estado de la UI. */
   doc: {
     read: (name, fallback = null) => call('doc:read', name, fallback),

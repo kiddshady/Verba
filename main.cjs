@@ -37,6 +37,7 @@ const ipc = require('./src/ipc.cjs');
 const store = require('./src/store.cjs');
 const { keepAlive } = require('./src/recover.cjs');
 const motor = require('./src/motor.cjs');
+const actualizador = require('./src/actualizador.cjs');
 
 /* Color base de arranque. Tiene que coincidir con --op-bg de tokens.css.
    Como --op-bg es oklch y Electron solo entiende hex, el renderer se lo vuelve
@@ -257,6 +258,11 @@ app.whenReady().then(async () => {
   motor.init((ev) => {
     if (win && !win.isDestroyed()) win.webContents.send('verba:ev', ev);
   }).catch((err) => console.error('[motor] no arrancó:', err));
+  /* Actualizaciones: busca un rato después de abrir y cada cuatro horas. Una
+     versión nueva se baja sola y entra al cerrar la app (src/actualizador.cjs). */
+  actualizador.iniciar(() => win, { autoDescargar: true });
+  setTimeout(() => actualizador.buscar({ manual: false }), 6000);
+  setInterval(() => actualizador.buscar({ manual: false }), 4 * 60 * 60 * 1000);
 });
 
 app.on('window-all-closed', () => {

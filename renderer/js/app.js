@@ -8,7 +8,7 @@
      Biblioteca    las transcripciones listas, por grupo
      Clase         el texto con sus tiempos, el reproductor y las correcciones
      Vocabularios  términos y correcciones por grupo
-     Ajustes       el motor y los datos
+     Ajustes       el motor, la lectura, los datos y las actualizaciones
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { Icons } from './icons.js';
@@ -19,6 +19,7 @@ import { viewEl, esc, paint, head, empty, mark, attempt, copy, colorToken, setSt
 import { plural, fmtDate } from './format.js';
 import { designHTML, wireDesign } from './design-view.js';
 import { Shell } from './shell.js';
+import { iniciarActualizaciones, vistaUpdate, accionUpdate, onUpdate } from './actualizar.js';
 
 const api = window.opal;
 const V = api.verba;
@@ -951,12 +952,29 @@ function viewAjustes() {
               <span class="op-kv__k">App</span><span class="op-kv__v">${esc(S.info?.name || '')} ${esc(S.info?.version || '')}</span>
               <span class="op-kv__k">Electron</span><span class="op-kv__v op-mono">${esc(S.info?.electron || '')}</span>
             </div>
+            <div class="op-row" style="gap:12px;margin-top:16px;flex-wrap:wrap">
+              <button class="op-btn op-btn--secondary op-flashable" id="upd-boton" style="min-width:196px;justify-content:center"></button>
+              <span class="op-meta op-grow" id="upd-texto" style="min-width:200px"></span>
+            </div>
           </div></div>
         </div>
 
       </div>
       <div style="height:32px"></div>
     </div>`);
+
+  // Las actualizaciones: el estado cambia solo (se baja en segundo plano).
+  const pintarUpdate = () => {
+    const b = document.querySelector('#view #upd-boton'), t = document.querySelector('#view #upd-texto');
+    if (!b || !t) return;
+    const u = vistaUpdate();
+    if (b.textContent !== u.boton) b.textContent = u.boton;
+    b.disabled = u.apagado;
+    if (t.textContent !== u.texto) t.textContent = u.texto;
+  };
+  pintarUpdate();
+  Router.onLeave(onUpdate(pintarUpdate));
+  document.getElementById('upd-boton').addEventListener('click', accionUpdate);
 
   const modelo = document.getElementById('set-modelo');
   modelo.addEventListener('click', (e) => {
@@ -1219,6 +1237,7 @@ async function boot() {
   Player.init();
   aplicarVentana(S.settings);
   V.onEvento(alEvento);
+  iniciarActualizaciones({ transcribiendo: () => !!S.motor.corriendo });
   Router.onChange(alNavegar);
   // Con algo en la cola se abre ahí; si no, en la biblioteca.
   Router.go(pendientes().length || !listas().length ? 'cola' : 'biblioteca');
